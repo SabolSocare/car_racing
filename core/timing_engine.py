@@ -348,6 +348,8 @@ class F1LiveTiming:
             # Leader has no gap
             rankings[0]['gap_to_leader'] = 0.0
             rankings[0]['gap_to_ahead'] = 0.0
+            rankings[0]['distance_gap_to_leader'] = 0.0
+            rankings[0]['distance_gap_to_ahead'] = 0.0
             
             leader_distance = rankings[0]['distance_traveled']
             
@@ -358,6 +360,10 @@ class F1LiveTiming:
                 # Distance gaps (calculated at same synchronized timestamp)
                 distance_gap_to_leader = leader_distance - car['distance_traveled']
                 distance_gap_to_ahead = car_ahead['distance_traveled'] - car['distance_traveled']
+                
+                # Store distance gaps in the car data
+                car['distance_gap_to_leader'] = distance_gap_to_leader
+                car['distance_gap_to_ahead'] = distance_gap_to_ahead
                 
                 # Enhanced time gap calculation using synchronized timestamp
                 time_gap_to_leader = self._calculate_enhanced_time_gap(

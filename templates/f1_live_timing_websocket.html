@@ -281,7 +281,7 @@
             background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 50%, #2a2a2a 100%);
             padding: 20px 0;
             display: grid;
-            grid-template-columns: 80px 140px 130px 160px 150px 150px 130px;
+            grid-template-columns: 80px 140px 130px 160px 150px 150px 150px 130px;
             gap: 15px;
             font-weight: 700;
             font-size: 1.2em;
@@ -320,7 +320,7 @@
 
         .car-row {
             display: grid;
-            grid-template-columns: 80px 140px 130px 160px 150px 150px 130px;
+            grid-template-columns: 80px 140px 130px 160px 150px 150px 150px 130px;
             gap: 15px;
             padding: 16px 0;
             border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -580,6 +580,13 @@
             text-shadow: 0 0 8px rgba(136, 204, 255, 0.4);
         }
 
+        .distance-gap {
+            color: #ffa500;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-shadow: 0 0 8px rgba(255, 165, 0, 0.4);
+        }
+
         .gap-leader {
             color: #ffaa00;
             font-weight: 700;
@@ -779,14 +786,14 @@
         /* Enhanced Responsive design with better mobile support */
         @media (max-width: 1400px) {
             .table-header, .car-row {
-                grid-template-columns: 70px 130px 120px 150px 140px 140px 120px;
+                grid-template-columns: 70px 130px 120px 140px 130px 130px 130px 120px;
                 font-size: 0.95em;
             }
         }
 
         @media (max-width: 1200px) {
             .table-header, .car-row {
-                grid-template-columns: 60px 120px 110px 140px 130px 130px 110px;
+                grid-template-columns: 60px 120px 110px 130px 120px 120px 120px 110px;
                 font-size: 0.9em;
             }
             
@@ -797,7 +804,7 @@
 
         @media (max-width: 900px) {
             .table-header, .car-row {
-                grid-template-columns: 50px 100px 90px 120px 110px 110px;
+                grid-template-columns: 50px 100px 90px 110px 100px 100px 110px;
                 gap: 10px;
             }
             
@@ -821,11 +828,11 @@
 
         @media (max-width: 600px) {
             .table-header, .car-row {
-                grid-template-columns: 40px 80px 70px 90px 90px;
+                grid-template-columns: 40px 80px 70px 80px 80px 90px;
                 font-size: 0.8em;
             }
             
-            .gap-ahead { display: none; }
+            .gap-ahead, .distance-gap { display: none; }
             
             .timing-table {
                 margin: 15px;
@@ -1102,6 +1109,7 @@
             <div>TRUCK</div>
             <div>SPEED</div>
             <div>DISTANCE</div>
+            <div>DISTANCE GAP</div>
             <div>GAP TO LEADER</div>
             <div>GAP TO AHEAD</div>
             <div>STATUS</div>
@@ -1121,6 +1129,7 @@
             <div>TRUCK</div>
             <div>SPEED</div>
             <div>DISTANCE</div>
+            <div>DISTANCE GAP</div>
             <div>GAP TO LEADER</div>
             <div>GAP TO AHEAD</div>
             <div>STATUS</div>
@@ -1364,6 +1373,7 @@
                         <div>SPEED</div>
                         <div>DISTANCE GAP</div>
                         <div>SPEED GAP</div>
+                        <div>GAP TO LEADER</div>
                         <div>GAP TO AHEAD</div>
                         <div>STATUS</div>
                     `;
@@ -1373,6 +1383,7 @@
                         <div>TRUCK</div>
                         <div>SPEED</div>
                         <div>DISTANCE</div>
+                        <div>DISTANCE GAP</div>
                         <div>GAP TO LEADER</div>
                         <div>GAP TO AHEAD</div>
                         <div>STATUS</div>
@@ -1389,6 +1400,7 @@
                         <div>SPEED</div>
                         <div>DISTANCE GAP</div>
                         <div>SPEED GAP</div>
+                        <div>GAP TO LEADER</div>
                         <div>GAP TO AHEAD</div>
                         <div>STATUS</div>
                     `;
@@ -1398,6 +1410,7 @@
                         <div>TRUCK</div>
                         <div>SPEED</div>
                         <div>DISTANCE</div>
+                        <div>DISTANCE GAP</div>
                         <div>GAP TO LEADER</div>
                         <div>GAP TO AHEAD</div>
                         <div>STATUS</div>
@@ -1484,7 +1497,7 @@
                 animationClass = positionChange.direction === 'up' ? 'position-up' : 'position-down';
             }
             
-            let gapToLeader, gapToAhead, distanceDisplay;
+            let gapToLeader, gapToAhead, distanceDisplay, distanceGap;
             
             if (rankingMode === 'speed') {
                 gapToLeader = car.speed_gap_to_leader !== undefined ? formatSpeedGap(car.speed_gap_to_leader) : formatSpeedGap(0);
@@ -1493,10 +1506,20 @@
                     (car.distance_relative_to_leader === 0 ? formatDistance(car.distance_traveled) : 
                      `-${formatDistance(Math.abs(car.distance_relative_to_leader))}`) : 
                     formatDistance(car.distance_traveled);
+                distanceGap = car.distance_relative_to_leader !== undefined && car.distance_relative_to_leader !== 0 ? 
+                    `-${formatDistance(Math.abs(car.distance_relative_to_leader))}` : "Leader";
             } else {
                 gapToLeader = formatTime(car.gap_to_leader);
                 gapToAhead = formatTime(car.gap_to_ahead);
                 distanceDisplay = formatDistance(car.distance_traveled);
+                
+                // Use distance gap from backend data
+                if (car.distance_gap_to_leader !== undefined) {
+                    distanceGap = car.distance_gap_to_leader === 0 ? "Leader" : `-${formatDistance(car.distance_gap_to_leader)}`;
+                } else {
+                    // Fallback calculation if not provided
+                    distanceGap = index === 0 ? "Leader" : "--.--m";
+                }
             }
 
             // Add trend indicators
@@ -1521,6 +1544,7 @@
                         ${speedTrend}
                     </div>
                     <div class="distance">${distanceDisplay}</div>
+                    <div class="distance-gap">${distanceGap}</div>
                     <div class="gap-leader ${gapClass}">${gapToLeader}</div>
                     <div class="gap-ahead">${gapToAhead}</div>
                     <div class="status ${isLive ? 'running' : 'stopped'}">

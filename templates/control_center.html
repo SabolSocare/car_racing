@@ -312,13 +312,14 @@
                         <th>TRUCK</th>
                         <th>SPEED</th>
                         <th>DISTANCE</th>
+                        <th>DISTANCE GAP</th>
                         <th>GAP TO LEADER</th>
                         <th>STATUS</th>
                     </tr>
                 </thead>
                 <tbody id="rankingsTable">
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 20px;">
+                        <td colspan="7" style="text-align: center; padding: 20px;">
                             No race data available. Start the race to see live rankings.
                         </td>
                     </tr>
@@ -451,7 +452,7 @@
             if (rankings.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 20px;">
+                        <td colspan="7" style="text-align: center; padding: 20px;">
                             No race data available. Start the race to see live rankings.
                         </td>
                     </tr>
@@ -459,16 +460,39 @@
                 return;
             }
             
-            tbody.innerHTML = rankings.slice(0, 10).map(car => `
-                <tr>
-                    <td>${car.position}</td>
-                    <td>${car.truck_name}</td>
-                    <td>${car.current_speed.toFixed(1)} km/h</td>
-                    <td>${car.distance_traveled.toFixed(0)}m</td>
-                    <td>${car.gap_to_leader > 0 ? '+' + car.gap_to_leader.toFixed(1) + 's' : 'LEADER'}</td>
-                    <td><span class="status-${car.status.toLowerCase()}">${car.status}</span></td>
-                </tr>
-            `).join('');
+            // Helper function to format distance
+            function formatDistance(meters) {
+                if (meters > 1000) {
+                    return `${(meters / 1000).toFixed(2)}km`;
+                } else {
+                    return `${meters.toFixed(0)}m`;
+                }
+            }
+            
+            tbody.innerHTML = rankings.slice(0, 10).map(car => {
+                // Format distance gap
+                let distanceGap = "Leader";
+                if (car.distance_gap_to_leader !== undefined && car.distance_gap_to_leader > 0) {
+                    distanceGap = `-${formatDistance(car.distance_gap_to_leader)}`;
+                } else if (car.position > 1) {
+                    // Fallback calculation if distance_gap_to_leader is not available
+                    const leaderDistance = rankings[0].distance_traveled;
+                    const gap = leaderDistance - car.distance_traveled;
+                    distanceGap = gap > 0 ? `-${formatDistance(gap)}` : "0m";
+                }
+                
+                return `
+                    <tr>
+                        <td>${car.position}</td>
+                        <td>${car.truck_name}</td>
+                        <td>${car.current_speed.toFixed(1)} km/h</td>
+                        <td>${formatDistance(car.distance_traveled)}</td>
+                        <td>${distanceGap}</td>
+                        <td>${car.gap_to_leader > 0 ? '+' + car.gap_to_leader.toFixed(1) + 's' : 'LEADER'}</td>
+                        <td><span class="status-${car.status.toLowerCase()}">${car.status}</span></td>
+                    </tr>
+                `;
+            }).join('');
         }
         
         function showUpdateIndicator() {
