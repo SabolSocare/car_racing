@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Overtaking Analysis Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .car-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .car-select {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            color: white;
+            font-size: 16px;
+        }
+        
+        .car-select option {
+            background: #2a5298;
+            color: white;
+        }
+        
+        .analyze-btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            border: none;
+            border-radius: 10px;
+            padding: 15px 30px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+        
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .results {
+            display: none;
+        }
+        
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .scenario-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #4ecdc4;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-size: 18px;
+        }
+        
+        .status-running { color: #4ecdc4; }
+        .status-pit { color: #ffd93d; }
+        .status-stopped { color: #ff6b6b; }
+        .status-out { color: #95a5a6; }
+        
+        .difficulty-easy { color: #4ecdc4; }
+        .difficulty-moderate { color: #ffd93d; }
+        .difficulty-hard { color: #ff6b6b; }
+        
+        .metric {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            margin: 5px 0;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .recommendations {
+            background: rgba(76, 175, 80, 0.2);
+            border-left: 4px solid #4caf50;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏁 F1 Overtaking Analysis Dashboard</h1>
+            <p>Advanced overtaking predictions and speed analysis</p>
+        </div>
+        
+        <div class="card">
+            <h2>🎯 Select Cars for Analysis</h2>
+            <div class="car-selector">
+                <div>
+                    <label for="chasing-car">Chasing Car:</label>
+                    <select id="chasing-car" class="car-select">
+                        <option value="">Select chasing car...</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="target-car">Target Car:</label>
+                    <select id="target-car" class="car-select">
+                        <option value="">Select target car...</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: end; gap: 10px;">
+                    <button onclick="analyzeOvertaking()" class="analyze-btn">
+                        🚀 Analyze Overtaking
+                    </button>
+                    <button onclick="manualRefresh()" class="analyze-btn" style="background: linear-gradient(45deg, #4ecdc4, #44a08d); padding: 10px 20px; font-size: 14px;">
+                        🔄 Refresh
+                    </button>
+                </div>
+            </div>
+            
+            <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
+                <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                    <input type="checkbox" id="auto-update-toggle" checked style="margin: 0;">
+                    <span>🔄 Auto-update every 3 seconds</span>
+                </label>
+                <span id="update-status" style="font-size: 12px; opacity: 0.7;"></span>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <p>🔄 Analyzing overtaking scenarios...</p>
+        </div>
+        
+        <div id="update-indicator" class="loading" style="display: none; background: rgba(255, 255, 255, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 10px;">
+            <p style="margin: 0;">🔄 Updating data...</p>
+        </div>
+        
+        <div id="results" class="results">
+            <div class="card">
+                <h2>📊 Current Situation</h2>
+                <div id="current-situation"></div>
+            </div>
+            
+            <div class="card">
+                <h2>⚡ Speed Requirements</h2>
+                <div id="speed-requirements"></div>
+            </div>
+            
+            <div class="card">
+                <h2>🎯 Optimal Scenarios</h2>
+                <div id="optimal-scenarios"></div>
+            </div>
+            
+            <div class="card">
+                <h2>💡 AI Recommendations</h2>
+                <div id="recommendations"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let trucks = [];
+        
+        // Load available trucks
+        async function loadTrucks() {
+            try {
+                const response = await fetch('/api/trucks');
+                const data = await response.json();
+                trucks = data.trucks;
+                
+                const chasingSelect = document.getElementById('chasing-car');
+                
+                // Only populate chasing car dropdown initially
+                trucks.forEach(truck => {
+                    const option = new Option(`${truck.truck_name} (ID: ${truck.car_id})`, truck.car_id);
+                    chasingSelect.add(option);
+                });
+                
+                // Add event listener to chasing car dropdown
+                chasingSelect.addEventListener('change', updateTargetCarList);
+                
+            } catch (error) {
+                console.error('Error loading trucks:', error);
+            }
+        }
+        
+        // Update target car list based on selected chasing car
+        async function updateTargetCarList() {
+            const chasingCarId = document.getElementById('chasing-car').value;
+            const targetSelect = document.getElementById('target-car');
+            
+            // Clear target car dropdown
+            targetSelect.innerHTML = '<option value="">Select target car...</option>';
+            
+            if (!chasingCarId) {
+                return;
+            }
+            
+            try {
+                // Start race if not running to get current rankings
+                await fetch('/api/start');
+                
+                // Get available targets for the selected chasing car
+                const response = await fetch(`/api/available-targets/${chasingCarId}`);
+                const data = await response.json();
+                
+                if (data.error) {
+                    targetSelect.innerHTML = '<option value="">No targets available</option>';
+                    console.error('Error getting targets:', data.message);
+                    return;
+                }
+                
+                if (data.available_targets.length === 0) {
+                    targetSelect.innerHTML = '<option value="">No cars ahead to overtake</option>';
+                    return;
+                }
+                
+                // Populate target dropdown with cars ahead of chasing car
+                data.available_targets.forEach(target => {
+                    const gapText = target.gap_to_chasing_car > 0 ? 
+                        `+${target.gap_to_chasing_car.toFixed(0)}m` : 
+                        `${target.gap_to_chasing_car.toFixed(0)}m`;
+                    
+                    const option = new Option(
+                        `P${target.position} ${target.truck_name} (${gapText})`, 
+                        target.car_id
+                    );
+                    targetSelect.add(option);
+                });
+                
+                // Show info about available targets
+                console.log(`Chasing car: ${data.chasing_car_name} (P${data.chasing_car_position})`);
+                console.log(`Available targets: ${data.total_targets} cars ahead`);
+                
+            } catch (error) {
+                console.error('Error updating target car list:', error);
+                targetSelect.innerHTML = '<option value="">Error loading targets</option>';
+            }
+        }
+        
+        // Analyze overtaking
+        async function analyzeOvertaking(showLoading = true) {
+            const chasingCarId = document.getElementById('chasing-car').value;
+            const targetCarId = document.getElementById('target-car').value;
+            
+            if (!chasingCarId || !targetCarId) {
+                if (showLoading) alert('Please select both cars');
+                return;
+            }
+            
+            if (chasingCarId === targetCarId) {
+                if (showLoading) alert('Please select different cars');
+                return;
+            }
+            
+            // Only show loading on initial analysis, not on auto-updates
+            if (showLoading) {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('results').style.display = 'none';
+            } else {
+                // Show a subtle update indicator
+                showUpdateIndicator();
+            }
+            
+            try {
+                // Start race if not running
+                await fetch('/api/start');
+                
+                // Get detailed analysis
+                const [analysisResponse, speedResponse, comparisonResponse] = await Promise.all([
+                    fetch(`/api/overtake-analysis/${chasingCarId}/${targetCarId}`),
+                    fetch(`/api/speed-requirements/${chasingCarId}/${targetCarId}`),
+                    fetch(`/api/car-comparison/${chasingCarId}/${targetCarId}`)
+                ]);
+                
+                const analysis = await analysisResponse.json();
+                const speedReq = await speedResponse.json();
+                const comparison = await comparisonResponse.json();
+                
+                displayResults(analysis, speedReq, comparison);
+            
+            // Keep results visible and mark as successfully analyzed
+            document.getElementById('results').setAttribute('data-analyzed', 'true');
+                
+            } catch (error) {
+                console.error('Error analyzing overtaking:', error);
+                if (showLoading) alert('Error analyzing overtaking. Please try again.');
+            } finally {
+                if (showLoading) {
+                    document.getElementById('loading').style.display = 'none';
+                } else {
+                    hideUpdateIndicator();
+                }
+            }
+        }
+        
+        function showUpdateIndicator() {
+            const indicator = document.getElementById('update-indicator');
+            if (indicator) {
+                indicator.style.display = 'block';
+                indicator.innerHTML = '🔄 Updating data...';
+                indicator.classList.add('pulse');
+            }
+            
+            // Add visual feedback to the results sections
+            const resultsDiv = document.getElementById('results');
+            if (resultsDiv) {
+                resultsDiv.style.opacity = '0.8';
+                resultsDiv.style.transition = 'opacity 0.3s ease';
+            }
+        }
+        
+        function hideUpdateIndicator() {
+            const indicator = document.getElementById('update-indicator');
+            if (indicator) {
+                indicator.style.display = 'none';
+                indicator.classList.remove('pulse');
+            }
+            
+            // Restore full opacity
+            const resultsDiv = document.getElementById('results');
+            if (resultsDiv) {
+                resultsDiv.style.opacity = '1';
+            }
+        }
+        
+        function displayResults(analysis, speedReq, comparison) {
+            // Add timestamp to show when data was last updated
+            const now = new Date();
+            const timeString = now.toLocaleTimeString();
+            
+            // Update page title with last update time
+            document.title = `F1 Overtaking Analysis - Updated ${timeString}`;
+            
+            // Add update time indicator to the page
+            let updateTimeDiv = document.getElementById('last-update-time');
+            if (!updateTimeDiv) {
+                updateTimeDiv = document.createElement('div');
+                updateTimeDiv.id = 'last-update-time';
+                updateTimeDiv.style.cssText = `
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    background: rgba(0, 0, 0, 0.7);
+                    color: white;
+                    padding: 8px 12px;
+                    border-radius: 5px;
+                    font-size: 12px;
+                    z-index: 1000;
+                `;
+                document.body.appendChild(updateTimeDiv);
+            }
+            updateTimeDiv.innerHTML = `📊 Last updated: ${timeString}`;
+            
+            // Current situation
+            const currentSituation = document.getElementById('current-situation');
+            if (comparison.error) {
+                currentSituation.innerHTML = `<p>❌ ${comparison.message}</p>`;
+            } else {
+                const leader = comparison.leader;
+                const chaser = comparison.chaser;
+                const gap = comparison.gap_analysis;
+                
+                // Check if chasing car is already ahead
+                const chasingCarId = parseInt(document.getElementById('chasing-car').value);
+                const isAlreadyAhead = leader.id === chasingCarId;
+                
+                currentSituation.innerHTML = `
+                    <div class="metric">
+                        <span>👑 Leader:</span>
+                        <span>${leader.name} (${leader.speed_trend.current_speed.toFixed(1)} km/h)</span>
+                    </div>
+                    <div class="metric">
+                        <span>🏃 ${isAlreadyAhead ? 'Following Car' : 'Chaser'}:</span>
+                        <span>${chaser.name} (${chaser.speed_trend.current_speed.toFixed(1)} km/h)</span>
+                    </div>
+                    <div class="metric">
+                        <span>📏 Distance Gap:</span>
+                        <span>${gap.distance_gap_meters.toFixed(1)} meters</span>
+                    </div>
+                    <div class="metric">
+                        <span>⏱️ Time Gap:</span>
+                        <span>${gap.time_gap_seconds.toFixed(1)} seconds</span>
+                    </div>
+                    <div class="metric">
+                        <span>🏃 Speed Difference:</span>
+                        <span>${gap.speed_gap_kmh.toFixed(1)} km/h</span>
+                    </div>
+                    ${isAlreadyAhead ? `
+                        <div class="metric" style="background: rgba(76, 175, 80, 0.3);">
+                            <span>✅ Status:</span>
+                            <span>Chasing car is already ahead!</span>
+                        </div>
+                    ` : ''}
+                `;
+            }
+            
+            // Speed requirements
+            const speedRequirements = document.getElementById('speed-requirements');
+            if (speedReq.error) {
+                speedRequirements.innerHTML = `<p>❌ ${speedReq.message}</p>`;
+            } else {
+                // Check if chasing car is already ahead
+                const chasingCarId = parseInt(document.getElementById('chasing-car').value);
+                const isAlreadyAhead = comparison.leader && comparison.leader.id === chasingCarId;
+                
+                if (isAlreadyAhead) {
+                    speedRequirements.innerHTML = `
+                        <div class="metric" style="background: rgba(76, 175, 80, 0.3);">
+                            <span>✅ Overtaking Complete:</span>
+                            <span>The chasing car is already ahead of the target!</span>
+                        </div>
+                        <div class="metric">
+                            <span>💡 Recommendation:</span>
+                            <span>Focus on maintaining the lead and defending position</span>
+                        </div>
+                    `;
+                } else {
+                    let speedHtml = '';
+                    speedReq.speed_requirements.slice(0, 6).forEach(req => {
+                        const difficultyClass = `difficulty-${req.difficulty}`;
+                        const emoji = req.difficulty === 'easy' ? '🟢' : req.difficulty === 'moderate' ? '🟡' : '🔴';
+                        
+                        speedHtml += `
+                            <div class="metric">
+                                <span>${emoji} ${req.time_window_seconds}s overtake:</span>
+                                <span class="${difficultyClass}">
+                                    ${req.required_speed_kmh.toFixed(1)} km/h 
+                                    (+${req.speed_increase_needed_kmh.toFixed(1)} km/h)
+                                </span>
+                            </div>
+                        `;
+                    });
+                    speedRequirements.innerHTML = speedHtml;
+                }
+            }
+            
+            // Optimal scenarios
+            const optimalScenarios = document.getElementById('optimal-scenarios');
+            if (analysis.error) {
+                optimalScenarios.innerHTML = `<p>❌ ${analysis.message}</p>`;
+            } else {
+                // Check if chasing car is already ahead
+                const chasingCarId = parseInt(document.getElementById('chasing-car').value);
+                const isAlreadyAhead = comparison.leader && comparison.leader.id === chasingCarId;
+                
+                if (isAlreadyAhead) {
+                    optimalScenarios.innerHTML = `
+                        <div class="scenario-card" style="background: rgba(76, 175, 80, 0.2);">
+                            <h4>🏆 Mission Accomplished!</h4>
+                            <p>The chasing car has successfully overtaken the target car.</p>
+                            <p><strong>Current advantage:</strong> ${comparison.gap_analysis.distance_gap_meters.toFixed(1)} meters</p>
+                            <p><strong>Speed difference:</strong> ${comparison.gap_analysis.speed_gap_kmh.toFixed(1)} km/h</p>
+                            <p><strong>Strategy:</strong> Maintain current pace and defend position</p>
+                        </div>
+                    `;
+                } else if (analysis.optimal_combinations && analysis.optimal_combinations.length > 0) {
+                    let scenariosHtml = '<div class="scenario-grid">';
+                    analysis.optimal_combinations.slice(0, 6).forEach((combo, index) => {
+                        scenariosHtml += `
+                            <div class="scenario-card">
+                                <h4>Scenario ${index + 1}</h4>
+                                <p><strong>Time to overtake:</strong> ${combo.overtake_time_seconds.toFixed(1)}s</p>
+                                <p><strong>Speed increase needed:</strong> +${combo.chasing_speed_increase} km/h</p>
+                                <p><strong>Target speed change:</strong> -${combo.target_speed_decrease} km/h</p>
+                                <p><strong>Speed advantage:</strong> ${combo.relative_speed_advantage.toFixed(1)} km/h</p>
+                            </div>
+                        `;
+                    });
+                    scenariosHtml += '</div>';
+                    optimalScenarios.innerHTML = scenariosHtml;
+                } else {
+                    optimalScenarios.innerHTML = '<p>No optimal scenarios found for overtaking.</p>';
+                }
+            }
+            
+            // Recommendations
+            const recommendations = document.getElementById('recommendations');
+            const chasingCarId = parseInt(document.getElementById('chasing-car').value);
+            const isAlreadyAhead = comparison.leader && comparison.leader.id === chasingCarId;
+            
+            if (isAlreadyAhead) {
+                recommendations.innerHTML = `
+                    <div class="recommendations">
+                        <p><strong>🎯 Strategic Position: Leading</strong></p>
+                        <p>💡 Maintain current speed and watch for pursuing cars</p>
+                    </div>
+                    <div class="recommendations">
+                        <p><strong>🛡️ Defensive Driving</strong></p>
+                        <p>💡 Block overtaking opportunities and control the racing line</p>
+                    </div>
+                `;
+            } else if (analysis.recommendations && analysis.recommendations.length > 0) {
+                let recHtml = '';
+                analysis.recommendations.forEach(rec => {
+                    recHtml += `
+                        <div class="recommendations">
+                            <p><strong>${rec.message}</strong></p>
+                            ${rec.suggestion ? `<p>💡 ${rec.suggestion}</p>` : ''}
+                        </div>
+                    `;
+                });
+                recommendations.innerHTML = recHtml;
+            } else {
+                recommendations.innerHTML = '<p>No specific recommendations available.</p>';
+            }
+            
+            document.getElementById('results').style.display = 'block';
+        }
+        
+        // Auto-refresh analysis every 5 seconds if results are visible
+        let autoUpdateInterval;
+        let autoUpdateEnabled = true;
+        
+        function updateAutoUpdateStatus() {
+            const statusElement = document.getElementById('update-status');
+            if (autoUpdateEnabled && autoUpdateInterval) {
+                statusElement.textContent = '✅ Auto-updating active';
+                statusElement.style.color = '#4ecdc4';
+            } else {
+                statusElement.textContent = '⏸️ Auto-update paused';
+                statusElement.style.color = '#ffd93d';
+            }
+        }
+        
+        function startAutoUpdate() {
+            // Clear any existing interval
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+            }
+            
+            if (!autoUpdateEnabled) {
+                updateAutoUpdateStatus();
+                return;
+            }
+            
+            autoUpdateInterval = setInterval(() => {
+                const resultsDiv = document.getElementById('results');
+                if (resultsDiv.getAttribute('data-analyzed') === 'true') {
+                    const chasingCarId = document.getElementById('chasing-car').value;
+                    const targetCarId = document.getElementById('target-car').value;
+                    if (chasingCarId && targetCarId && chasingCarId !== targetCarId) {
+                        analyzeOvertaking(false); // false = don't show loading screen
+                    }
+                }
+            }, 3000); // Update every 3 seconds for more real-time feel
+            
+            updateAutoUpdateStatus();
+        }
+        
+        function stopAutoUpdate() {
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+            }
+            updateAutoUpdateStatus();
+        }
+        
+        function toggleAutoUpdate() {
+            const checkbox = document.getElementById('auto-update-toggle');
+            autoUpdateEnabled = checkbox.checked;
+            
+            if (autoUpdateEnabled) {
+                startAutoUpdate();
+            } else {
+                stopAutoUpdate();
+            }
+        }
+        
+        // Manual refresh button
+        function manualRefresh() {
+            analyzeOvertaking(false);
+        }
+        
+        // Load trucks on page load
+        window.addEventListener('load', () => {
+            loadTrucks();
+            startAutoUpdate();
+            
+            // Add event listener for auto-update checkbox
+            document.getElementById('auto-update-toggle').addEventListener('change', toggleAutoUpdate);
+        });
+        
+        // Stop auto-update when page is hidden (tab switch, etc.)
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                stopAutoUpdate();
+            } else {
+                startAutoUpdate();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Live Timing - Performance Mode</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2d2d2d 100%);
+            color: #ffffff;
+            overflow-x: auto;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #e10600 0%, #ff4444 50%, #e10600 100%);
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(225, 6, 0, 0.3);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-family: 'Orbitron', monospace;
+            font-size: 3em;
+            font-weight: 900;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            letter-spacing: 3px;
+        }
+
+        .race-info {
+            background: linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #e10600;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .race-time {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.2em;
+            font-weight: 700;
+            color: #00ff00;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.8);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #00aa00, #00ff00);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 170, 0, 0.4);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #cc0000, #ff0000);
+            color: white;
+            box-shadow: 0 4px 15px rgba(204, 0, 0, 0.4);
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #666, #999);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 102, 102, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            opacity: 0.9;
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            font-family: 'Orbitron', monospace;
+            margin-left: 15px;
+        }
+
+        .connected {
+            background: linear-gradient(135deg, #00aa00, #00ff00);
+            color: white;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+        }
+
+        .disconnected {
+            background: linear-gradient(135deg, #cc0000, #ff0000);
+            color: white;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
+        }
+
+        .timing-table {
+            margin: 25px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            border: 1px solid rgba(225, 6, 0, 0.3);
+        }
+
+        .comparison-controls {
+            background: #333;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .comparison-controls label {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .comparison-controls select, .comparison-controls input {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #444;
+            color: #fff;
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 50%, #2a2a2a 100%);
+            padding: 20px 0;
+            display: grid;
+            grid-template-columns: 80px 140px 130px 160px 150px 150px 130px;
+            gap: 15px;
+            font-weight: 700;
+            font-size: 1.2em;
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 3px solid #e10600;
+        }
+
+        .table-header div {
+            text-align: center;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .car-row {
+            display: grid;
+            grid-template-columns: 80px 140px 130px 160px 150px 150px 130px;
+            gap: 15px;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            transition: background-color 0.2s ease;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 500;
+        }
+
+        .car-row:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .car-row.position-1 {
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.2) 0%, rgba(255, 215, 0, 0.1) 30%, transparent 100%);
+            border-left: 4px solid #ffd700;
+        }
+
+        .car-row.position-2 {
+            background: linear-gradient(90deg, rgba(192, 192, 192, 0.2) 0%, rgba(192, 192, 192, 0.1) 30%, transparent 100%);
+            border-left: 4px solid #c0c0c0;
+        }
+
+        .car-row.position-3 {
+            background: linear-gradient(90deg, rgba(205, 127, 50, 0.2) 0%, rgba(205, 127, 50, 0.1) 30%, transparent 100%);
+            border-left: 4px solid #cd7f32;
+        }
+
+        .car-row div {
+            text-align: center;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1em;
+            font-weight: 500;
+        }
+
+        .position {
+            font-weight: 900;
+            font-size: 1.6em;
+            font-family: 'Orbitron', monospace;
+            color: #ffffff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+        }
+
+        .truck-name {
+            font-weight: 700;
+            font-size: 1.1em;
+            font-family: 'Rajdhani', sans-serif;
+            background: linear-gradient(135deg, #e10600, #ff4444);
+            color: white;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 35px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 2px 8px rgba(225, 6, 0, 0.3);
+        }
+
+        .speed {
+            color: #00ff88;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1em;
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+        }
+
+        .distance {
+            color: #88ccff;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-shadow: 0 0 6px rgba(136, 204, 255, 0.4);
+        }
+
+        .gap-leader {
+            color: #ffaa00;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            text-shadow: 0 0 6px rgba(255, 170, 0, 0.5);
+        }
+
+        .gap-ahead {
+            color: #ff8888;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-shadow: 0 0 6px rgba(255, 136, 136, 0.4);
+        }
+
+        .status {
+            font-size: 0.95em;
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status.running {
+            background: linear-gradient(135deg, #00aa00, #00ff00);
+            color: white;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.4);
+        }
+
+        .status.stopped {
+            background: linear-gradient(135deg, #cc0000, #ff0000);
+            color: white;
+        }
+
+        .leader-badge {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 10px;
+            font-size: 0.85em;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+        }
+
+        .live-indicator {
+            color: #ff0000;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            text-shadow: 0 0 8px rgba(255, 0, 0, 0.8);
+            font-size: 1.1em;
+        }
+
+        /* Minimal responsive design */
+        @media (max-width: 1200px) {
+            .table-header, .car-row {
+                grid-template-columns: 60px 120px 110px 140px 130px 130px 110px;
+                font-size: 0.9em;
+            }
+            
+            .header h1 {
+                font-size: 2.5em;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .table-header, .car-row {
+                grid-template-columns: 50px 100px 90px 120px 110px 110px;
+                gap: 10px;
+            }
+            
+            .status { display: none; }
+            
+            .race-info {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        /* Performance indicator */
+        .performance-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.8em;
+            z-index: 1000;
+        }
+
+        /* Only essential animations */
+        .car-row.updated {
+            background-color: rgba(0, 255, 136, 0.3);
+            transition: background-color 0.3s ease;
+        }
+
+        .data-flash {
+            animation: dataFlash 0.5s ease-out;
+        }
+
+        @keyframes dataFlash {
+            0% { background-color: rgba(0, 255, 136, 0.4); }
+            100% { background-color: transparent; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏁 F1 LIVE TIMING - PERFORMANCE MODE 🏁</h1>
+    </div>
+
+    <div class="race-info">
+        <div>
+            <span class="live-indicator">● LIVE</span>
+            <span class="race-time" id="raceTime">00:00:00</span>
+            <span class="connection-status" id="connectionStatus">CONNECTING...</span>
+        </div>
+        <div>
+            <span id="currentTime">--:--:--</span>
+        </div>
+        <div class="controls">
+            <button class="btn btn-start" onclick="startRace()">START</button>
+            <button class="btn btn-stop" onclick="stopRace()">STOP</button>
+            <button class="btn btn-reset" onclick="resetRace()">RESET</button>
+            <button class="btn" onclick="toggleMode()" style="background: linear-gradient(135deg, #444, #666);">FULL MODE</button>
+        </div>
+    </div>
+
+    <div class="comparison-controls">
+        <label for="rankingMode">Ranking Mode:</label>
+        <select id="rankingMode" onchange="updateRankingMode()">
+            <option value="distance" selected>By Distance (Race Position)</option>
+            <option value="speed">By Speed (Fastest to Slowest)</option>
+        </select>
+        
+        <span style="color: #00ff00; font-weight: bold;">Performance Mode: Reduced Animations</span>
+    </div>
+
+    <div class="timing-table">
+        <div class="table-header">
+            <div>POS</div>
+            <div>TRUCK</div>
+            <div>SPEED</div>
+            <div>DISTANCE</div>
+            <div>GAP TO LEADER</div>
+            <div>GAP TO AHEAD</div>
+            <div>STATUS</div>
+        </div>
+        
+        <div id="timingData">
+            <!-- Race data will appear here -->
+        </div>
+    </div>
+
+    <div class="performance-indicator" id="perfIndicator">
+        CPU: Low | Updates: 0
+    </div>
+
+    <script>
+        // WebSocket connection with reduced overhead
+        const socket = io();
+        let isLive = false;
+        let rankingMode = 'distance';
+        let previousRankings = [];
+        let updateCounter = 0;
+        let lastUpdateTime = Date.now();
+
+        // Reduced frequency updates
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            updateConnectionStatus(true);
+            socket.emit('request_data');
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            updateConnectionStatus(false);
+        });
+
+        socket.on('timing_update', function(data) {
+            updateCounter++;
+            const currentTime = Date.now();
+            const deltaTime = currentTime - lastUpdateTime;
+            lastUpdateTime = currentTime;
+            
+            updateTimingDisplay(data);
+            
+            // Update performance indicator
+            const perfIndicator = document.getElementById('perfIndicator');
+            const fps = Math.round(1000 / (deltaTime + 1));
+            perfIndicator.innerHTML = `FPS: ${fps} | Updates: ${updateCounter}`;
+        });
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.textContent = 'CONNECTED';
+                statusEl.className = 'connection-status connected';
+            } else {
+                statusEl.textContent = 'DISCONNECTED';
+                statusEl.className = 'connection-status disconnected';
+            }
+        }
+
+        function formatTime(seconds) {
+            if (seconds === 0) return "Leader";
+            if (seconds === Infinity || seconds > 10000) return "DNF";
+            
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            
+            if (mins > 0) {
+                return `+${mins}:${secs.toFixed(1).padStart(4, '0')}`;
+            } else {
+                return `+${secs.toFixed(2)}s`;
+            }
+        }
+
+        function formatDistance(meters) {
+            if (meters > 1000) {
+                return `${(meters / 1000).toFixed(2)}km`;
+            } else {
+                return `${meters.toFixed(0)}m`;
+            }
+        }
+
+        function updateRankingMode() {
+            rankingMode = document.getElementById('rankingMode').value;
+            socket.emit('request_data');
+        }
+
+        function generateCarRow(car, index) {
+            const positionClass = index < 3 ? `position-${index + 1}` : '';
+            
+            const gapToLeader = formatTime(car.gap_to_leader);
+            const gapToAhead = formatTime(car.gap_to_ahead);
+            const distanceDisplay = formatDistance(car.distance_traveled);
+            
+            return `
+                <div class="car-row ${positionClass}" data-car-id="${car.car_id}">
+                    <div class="position">${car.position}</div>
+                    <div class="truck-name">${car.truck_name || 'TRUCK' + car.car_id}</div>
+                    <div class="speed">${car.current_speed.toFixed(1)} km/h</div>
+                    <div class="distance">${distanceDisplay}</div>
+                    <div class="gap-leader">${gapToLeader}</div>
+                    <div class="gap-ahead">${gapToAhead}</div>
+                    <div class="status ${isLive ? 'running' : 'stopped'}">
+                        ${index === 0 ? '<span class="leader-badge">LEADER</span>' : (isLive ? 'RACING' : 'STOPPED')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateTimingDisplay(data) {
+            const raceTimeEl = document.getElementById('raceTime');
+            const currentTimeEl = document.getElementById('currentTime');
+            const timingDataEl = document.getElementById('timingData');
+
+            const raceMinutes = Math.floor(data.race_time / 60);
+            const raceSeconds = data.race_time % 60;
+            raceTimeEl.textContent = `${raceMinutes.toString().padStart(2, '0')}:${raceSeconds.toFixed(2).padStart(6, '0')}`;
+            currentTimeEl.textContent = data.current_time;
+
+            if (data.rankings && data.rankings.length > 0) {
+                let html = '';
+                data.rankings.forEach((car, index) => {
+                    html += generateCarRow(car, index);
+                });
+                
+                timingDataEl.innerHTML = html;
+                
+                // Minimal flash effect for updates
+                if (JSON.stringify(data.rankings) !== JSON.stringify(previousRankings)) {
+                    timingDataEl.classList.add('data-flash');
+                    setTimeout(() => timingDataEl.classList.remove('data-flash'), 500);
+                }
+                
+                previousRankings = data.rankings.slice();
+            } else {
+                timingDataEl.innerHTML = '<div>No race data available</div>';
+            }
+
+            isLive = data.is_running;
+        }
+
+        function startRace() {
+            socket.emit('start_race');
+        }
+
+        function stopRace() {
+            socket.emit('stop_race');
+        }
+
+        function resetRace() {
+            socket.emit('reset_race');
+        }
+
+        function toggleMode() {
+            window.location.href = '/';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Performance mode loaded');
+        });
+
+        // Reduced keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            switch(event.code) {
+                case 'Space':
+                    event.preventDefault();
+                    isLive ? stopRace() : startRace();
+                    break;
+                case 'KeyR':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        resetRace();
+                    }
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

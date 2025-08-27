@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Live Timing - Real-time</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            color: #ffffff;
+            overflow-x: auto;
+        }
+
+        .header {
+            background: linear-gradient(90deg, #e10600 0%, #ff4444 100%);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .race-info {
+            background: #333;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #e10600;
+        }
+
+        .race-time {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 0 0 10px rgba(0,255,0,0.5);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-start {
+            background: #00aa00;
+            color: white;
+        }
+
+        .btn-stop {
+            background: #cc0000;
+            color: white;
+        }
+
+        .btn-reset {
+            background: #666;
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .timing-table {
+            margin: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+        }
+
+        .comparison-controls {
+            background: #333;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .comparison-controls label {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .comparison-controls select, .comparison-controls input {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #444;
+            color: #fff;
+        }
+
+        .auto-update-indicator {
+            background: #00aa00;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+        }
+
+        .ranking-mode-indicator {
+            background: #0066cc;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+
+        .speed-ranking {
+            border-left: 3px solid #00ff88 !important;
+        }
+
+        .distance-ranking {
+            border-left: 3px solid #ffaa00 !important;
+        }
+
+        .comparison-controls {
+            background: #333;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .comparison-controls label {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .comparison-controls select, .comparison-controls input {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #444;
+            color: #fff;
+        }
+
+        .table-header {
+            background: linear-gradient(90deg, #333 0%, #444 100%);
+            padding: 15px 0;
+            display: grid;
+            grid-template-columns: 60px 120px 120px 150px 140px 140px 120px;
+            gap: 10px;
+            font-weight: bold;
+            font-size: 1.1em;
+            border-bottom: 2px solid #e10600;
+        }
+
+        .table-header div {
+            text-align: center;
+            padding: 0 10px;
+        }
+
+        .car-row {
+            display: grid;
+            grid-template-columns: 60px 120px 120px 150px 140px 140px 120px;
+            gap: 10px;
+            padding: 12px 0;
+            border-bottom: 1px solid #444;
+            transition: all 0.3s ease;
+        }
+
+        .car-row:hover {
+            background: #3a3a3a;
+            transform: scale(1.02);
+        }
+
+        .car-row.position-1 {
+            background: linear-gradient(90deg, #ffd700 20%, #2a2a2a 20%);
+            border-left: 5px solid #ffd700;
+        }
+
+        .car-row.position-2 {
+            background: linear-gradient(90deg, #c0c0c0 20%, #2a2a2a 20%);
+            border-left: 5px solid #c0c0c0;
+        }
+
+        .car-row.position-3 {
+            background: linear-gradient(90deg, #cd7f32 20%, #2a2a2a 20%);
+            border-left: 5px solid #cd7f32;
+        }
+
+        .car-row.highlighted {
+            background: linear-gradient(90deg, #0066cc 20%, #2a2a2a 20%);
+            border-left: 5px solid #0066cc;
+        }
+
+        .car-row div {
+            text-align: center;
+            padding: 0 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .position {
+            font-weight: bold;
+            font-size: 1.3em;
+            color: #ffffff;
+        }
+
+        .truck-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            background: #e10600;
+            color: white;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+        }
+
+        .truck-name {
+            font-weight: bold;
+            font-size: 1.1em;
+            background: #e10600;
+            color: white;
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 30px;
+        }
+
+        .speed {
+            color: #00ff88;
+            font-weight: bold;
+        }
+
+        .distance {
+            color: #88ccff;
+        }
+
+        .gap-leader {
+            color: #ffaa00;
+            font-weight: bold;
+        }
+
+        .gap-ahead {
+            color: #ff8888;
+        }
+
+        .status {
+            font-size: 0.9em;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-weight: bold;
+        }
+
+        .status.running {
+            background: #00aa00;
+            color: white;
+        }
+
+        .status.stopped {
+            background: #cc0000;
+            color: white;
+        }
+
+        .leader-badge {
+            background: #ffd700;
+            color: #000;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        .comparison-section {
+            margin: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .comparison-header {
+            background: linear-gradient(90deg, #0066cc 0%, #0088ff 100%);
+            padding: 15px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .auto-update-indicator {
+            background: #00aa00;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            animation: pulse 2s infinite;
+        }
+
+        .comparison-section {
+            margin: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .comparison-header {
+            background: linear-gradient(90deg, #0066cc 0%, #0088ff 100%);
+            padding: 15px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.5em;
+            color: #888;
+        }
+
+        .live-indicator {
+            color: #ff0000;
+            font-weight: bold;
+        }
+
+        /* Responsive design */
+        @media (max-width: 1200px) {
+            .table-header, .car-row {
+                grid-template-columns: 50px 100px 100px 120px 120px 120px 100px;
+                font-size: 0.9em;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .table-header, .car-row {
+                grid-template-columns: 40px 90px 80px 100px 100px 100px;
+            }
+            
+            .status { display: none; }
+            .comparison-controls { flex-direction: column; align-items: stretch; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏁 F1 LIVE TIMING 🏁</h1>
+    </div>
+
+        <div class="race-info">
+        <div>
+            <span class="live-indicator">● LIVE</span>
+            <span class="race-time" id="raceTime">00:00:00</span>
+            <span class="auto-update-indicator" id="autoUpdateIndicator">AUTO-UPDATE</span>
+        </div>
+        <div>
+            <span id="currentTime">--:--:--</span>
+        </div>
+        <div class="controls">
+            <button class="btn btn-start" onclick="startRace()">START</button>
+            <button class="btn btn-stop" onclick="stopRace()">STOP</button>
+            <button class="btn btn-reset" onclick="resetRace()">RESET</button>
+        </div>
+    </div>
+
+    <div class="comparison-controls">
+        <label for="rankingMode">Ranking Mode:</label>
+        <select id="rankingMode" onchange="updateRankingMode()">
+            <option value="distance" selected>By Distance (Race Position)</option>
+            <option value="speed">By Speed (Fastest to Slowest)</option>
+        </select>
+        
+        <label for="comparisonStart">Compare from position:</label>
+        <select id="comparisonStart" onchange="updateComparison()">
+            <option value="1">1st</option>
+            <option value="6">6th</option>
+            <option value="11">11th</option>
+            <option value="16">16th</option>
+        </select>
+        
+        <label for="comparisonCount">Number of trucks:</label>
+        <select id="comparisonCount" onchange="updateComparison()">
+            <option value="5" selected>5 trucks</option>
+            <option value="3">3 trucks</option>
+            <option value="10">10 trucks</option>
+        </select>
+        
+        <button class="btn btn-start" onclick="toggleComparison()">Show Comparison</button>
+        
+        <label>
+            <input type="checkbox" id="autoUpdate" checked onchange="toggleAutoUpdate()">
+            Auto-update (1 sec)
+        </label>
+    </div>
+
+
+
+    <div class="timing-table">
+        <div class="table-header">
+            <div>POS</div>
+            <div>TRUCK</div>
+            <div>SPEED</div>
+            <div>DISTANCE</div>
+            <div>GAP TO LEADER</div>
+            <div>GAP TO AHEAD</div>
+            <div>STATUS</div>
+        </div>
+        
+        <div id="timingData">
+           
+        </div>
+    </div>
+
+    <div class="comparison-section" id="comparisonSection">
+        <div class="comparison-header">
+            <span id="comparisonTitle">Comparison: Positions 1-5</span>
+        </div>
+        <div class="table-header">
+            <div>POS</div>
+            <div>TRUCK</div>
+            <div>SPEED</div>
+            <div>DISTANCE</div>
+            <div>GAP TO LEADER</div>
+            <div>GAP TO AHEAD</div>
+            <div>STATUS</div>
+        </div>
+        <div id="comparisonData">
+            <!-- Comparison data will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        let isLive = false;
+        let updateInterval;
+        let autoUpdateEnabled = true;
+        let comparisonVisible = false;
+        let rankingMode = 'distance'; // 'distance' or 'speed'
+
+        function formatTime(seconds) {
+            if (seconds === 0) return "Leader";
+            if (seconds === Infinity || seconds > 10000) return "DNF";
+            
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            
+            if (mins > 0) {
+                return `+${mins}:${secs.toFixed(1).padStart(4, '0')}`;
+            } else {
+                return `+${secs.toFixed(2)}s`;
+            }
+        }
+
+        function formatDistance(meters) {
+            if (meters > 1000) {
+                return `${(meters / 1000).toFixed(2)}km`;
+            } else {
+                return `${meters.toFixed(0)}m`;
+            }
+        }
+
+        function formatSpeedGap(speedDiff) {
+            if (speedDiff === 0) return "Fastest";
+            return `-${speedDiff.toFixed(1)} km/h`;
+        }
+
+        function sortRankings(rankings, mode) {
+            if (mode === 'speed') {
+                // Sort by current speed (descending - fastest first)
+                return rankings.slice().sort((a, b) => b.current_speed - a.current_speed);
+            } else {
+                // Sort by distance (descending - furthest first)
+                return rankings.slice().sort((a, b) => b.distance_traveled - a.distance_traveled);
+            }
+        }
+
+        function calculateSpeedRankings(rankings) {
+            // Sort by speed and add speed gaps
+            const speedSorted = rankings.slice().sort((a, b) => b.current_speed - a.current_speed);
+            const fastestSpeed = speedSorted.length > 0 ? speedSorted[0].current_speed : 0;
+            const leaderDistance = speedSorted.length > 0 ? speedSorted[0].distance_traveled : 0;
+            
+            return speedSorted.map((car, index) => {
+                // Calculate speed gaps
+                const speedGapToLeader = fastestSpeed - car.current_speed;
+                const speedGapToAhead = index === 0 ? 0 : speedSorted[index - 1].current_speed - car.current_speed;
+                
+                // Calculate distance gaps relative to speed leader
+                const distanceGapToLeader = leaderDistance - car.distance_traveled;
+                const distanceGapToAhead = index === 0 ? 0 : speedSorted[index - 1].distance_traveled - car.distance_traveled;
+                
+                // Convert distance gaps to time gaps using current speed
+                const currentSpeedMs = Math.max(car.current_speed * 1000 / 3600, 1);
+                const timeGapToLeader = distanceGapToLeader / currentSpeedMs;
+                const timeGapToAhead = distanceGapToAhead / currentSpeedMs;
+                
+                return {
+                    ...car,
+                    position: index + 1,
+                    speed_gap_to_leader: speedGapToLeader,
+                    speed_gap_to_ahead: speedGapToAhead,
+                    // Override distance-based gaps with speed leader relative gaps
+                    gap_to_leader: timeGapToLeader,
+                    gap_to_ahead: timeGapToAhead,
+                    // Also update distance to be relative to speed leader
+                    distance_relative_to_leader: distanceGapToLeader
+                };
+            });
+        }
+
+        function updateRankingMode() {
+            rankingMode = document.getElementById('rankingMode').value;
+            
+            // Update table headers based on ranking mode
+            const tableHeaders = document.querySelector('.timing-table .table-header');
+            if (tableHeaders) {
+                if (rankingMode === 'speed') {
+                    tableHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE GAP</div>
+                        <div>SPEED GAP</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                } else {
+                    tableHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE</div>
+                        <div>GAP TO LEADER</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                }
+            }
+            
+            // Update comparison headers too
+            const comparisonHeaders = document.querySelector('.comparison-section .table-header');
+            if (comparisonHeaders) {
+                if (rankingMode === 'speed') {
+                    comparisonHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE GAP</div>
+                        <div>SPEED GAP</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                } else {
+                    comparisonHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE</div>
+                        <div>GAP TO LEADER</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                }
+            }
+            
+            // Force immediate update
+            fetchTimingData();
+        }
+
+        function generateCarRow(car, index, isComparison = false) {
+            const positionClass = index < 3 ? `position-${index + 1}` : '';
+            const highlightClass = isComparison ? 'highlighted' : '';
+            
+            // Determine gap display based on ranking mode
+            let gapToLeader, gapToAhead, distanceDisplay;
+            
+            if (rankingMode === 'speed') {
+                // In speed mode, show speed gaps
+                gapToLeader = car.speed_gap_to_leader !== undefined ? formatSpeedGap(car.speed_gap_to_leader) : formatSpeedGap(0);
+                gapToAhead = car.speed_gap_to_ahead !== undefined ? (car.speed_gap_to_ahead === 0 ? "Fastest" : `-${car.speed_gap_to_ahead.toFixed(1)} km/h`) : formatSpeedGap(0);
+                // Show distance relative to speed leader
+                distanceDisplay = car.distance_relative_to_leader !== undefined ? 
+                    (car.distance_relative_to_leader === 0 ? formatDistance(car.distance_traveled) : 
+                     `-${formatDistance(Math.abs(car.distance_relative_to_leader))}`) : 
+                    formatDistance(car.distance_traveled);
+            } else {
+                // In distance mode, show time gaps (already relative to distance leader)
+                gapToLeader = formatTime(car.gap_to_leader);
+                gapToAhead = formatTime(car.gap_to_ahead);
+                distanceDisplay = formatDistance(car.distance_traveled);
+            }
+            
+            return `
+                <div class="car-row ${positionClass} ${highlightClass}" data-car-id="${car.car_id}">
+                    <div class="position">${car.position}</div>
+                    <div class="truck-name">${car.truck_name || 'TRUCK' + car.car_id}</div>
+                    <div class="speed">${car.current_speed.toFixed(1)} km/h</div>
+                    <div class="distance">${distanceDisplay}</div>
+                    <div class="gap-leader">${gapToLeader}</div>
+                    <div class="gap-ahead">${gapToAhead}</div>
+                    <div class="status ${isLive ? 'running' : 'stopped'}">
+                        ${index === 0 ? '<span class="leader-badge">LEADER</span>' : (isLive ? 'RACING' : 'STOPPED')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateTimingDisplay(data) {
+            const raceTimeEl = document.getElementById('raceTime');
+            const currentTimeEl = document.getElementById('currentTime');
+            const timingDataEl = document.getElementById('timingData');
+            const autoUpdateIndicator = document.getElementById('autoUpdateIndicator');
+
+            // Update time displays
+            const raceMinutes = Math.floor(data.race_time / 60);
+            const raceSeconds = data.race_time % 60;
+            raceTimeEl.textContent = `${raceMinutes.toString().padStart(2, '0')}:${raceSeconds.toFixed(1).padStart(4, '0')}`;
+            currentTimeEl.textContent = data.current_time;
+
+            // Update auto-update indicator
+            autoUpdateIndicator.style.display = autoUpdateEnabled ? 'inline-block' : 'none';
+
+            // Update timing table with smooth transitions
+            if (data.rankings && data.rankings.length > 0) {
+                let displayRankings;
+                
+                if (rankingMode === 'speed') {
+                    // Calculate speed-based rankings
+                    displayRankings = calculateSpeedRankings(data.rankings);
+                } else {
+                    // Use distance-based rankings from server
+                    displayRankings = data.rankings;
+                }
+                
+                let html = '';
+                displayRankings.forEach((car, index) => {
+                    html += generateCarRow(car, index);
+                });
+                
+                // Direct update without animation
+                timingDataEl.innerHTML = html;
+            } else {
+                timingDataEl.innerHTML = '<div>No race data available</div>';
+            }
+
+            isLive = data.is_running;
+
+            // Update comparison if visible
+            if (comparisonVisible) {
+                updateComparisonDisplay();
+            }
+        }
+
+        function updateComparisonDisplay() {
+            const startPos = parseInt(document.getElementById('comparisonStart').value);
+            const count = parseInt(document.getElementById('comparisonCount').value);
+            
+            fetch(`/api/comparison/${startPos}/${count}`)
+                .then(response => response.json())
+                .then(data => {
+                    const comparisonDataEl = document.getElementById('comparisonData');
+                    const comparisonTitleEl = document.getElementById('comparisonTitle');
+                    
+                    comparisonTitleEl.textContent = `Comparison: Positions ${startPos}-${startPos + count - 1}`;
+                    
+                    if (data.comparison && data.comparison.length > 0) {
+                        let html = '';
+                        data.comparison.forEach((car, index) => {
+                            html += generateCarRow(car, car.position - 1, true);
+                        });
+                        comparisonDataEl.innerHTML = html;
+                    } else {
+                        comparisonDataEl.innerHTML = '<div>No comparison data available</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching comparison data:', error);
+                });
+        }
+
+        function fetchTimingData() {
+            if (!autoUpdateEnabled) return;
+            
+            fetch('/api/live-update')
+                .then(response => response.json())
+                .then(data => {
+                    updateTimingDisplay(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching timing data:', error);
+                    document.getElementById('timingData').innerHTML = '<div>Connection error - Retrying...</div>';
+                });
+        }
+
+        function startRace() {
+            fetch('/api/start')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Race started:', data);
+                    if (!updateInterval && autoUpdateEnabled) {
+                        updateInterval = setInterval(fetchTimingData, 1000); // Update every second
+                    }
+                });
+        }
+
+        function stopRace() {
+            fetch('/api/stop')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Race stopped:', data);
+                });
+        }
+
+        function resetRace() {
+            fetch('/api/reset')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Race reset:', data);
+                    fetchTimingData(); // Refresh display
+                });
+        }
+
+        function toggleAutoUpdate() {
+            autoUpdateEnabled = document.getElementById('autoUpdate').checked;
+            
+            if (autoUpdateEnabled && !updateInterval) {
+                updateInterval = setInterval(fetchTimingData, 1000);
+                fetchTimingData(); // Immediate update
+            } else if (!autoUpdateEnabled && updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+        }
+
+        function toggleComparison() {
+            const comparisonSection = document.getElementById('comparisonSection');
+            comparisonVisible = !comparisonVisible;
+            
+            if (comparisonVisible) {
+                comparisonSection.style.display = 'block';
+                updateComparisonDisplay();
+                document.querySelector('.comparison-controls button').textContent = 'Hide Comparison';
+            } else {
+                comparisonSection.style.display = 'none';
+                document.querySelector('.comparison-controls button').textContent = 'Show Comparison';
+            }
+        }
+
+        function updateComparison() {
+            if (comparisonVisible) {
+                updateComparisonDisplay();
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            // Load initial truck data
+            fetch('/api/trucks')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Available trucks:', data.trucks);
+                })
+                .catch(error => {
+                    console.error('Error loading truck data:', error);
+                });
+
+            fetchTimingData(); // Initial load
+            
+            if (autoUpdateEnabled) {
+                updateInterval = setInterval(fetchTimingData, 1000); // Update every second
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+
+        // Add keyboard shortcuts
+        document.addEventListener('keydown', function(event) {
+            switch(event.code) {
+                case 'Space':
+                    event.preventDefault();
+                    isLive ? stopRace() : startRace();
+                    break;
+                case 'KeyR':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        resetRace();
+                    }
+                    break;
+                case 'KeyC':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        toggleComparison();
+                    }
+                    break;
+            }
+        });
+    </script>
+</body>
+</html>

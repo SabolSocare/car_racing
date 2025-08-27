@@ -1,0 +1,1799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Live Timing - Real-time</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Rajdhani', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #2d2d2d 100%);
+            color: #ffffff;
+            overflow-x: auto;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(225, 6, 0, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(0, 102, 204, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 80%, rgba(255, 215, 0, 0.05) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #e10600 0%, #ff4444 50%, #e10600 100%);
+            padding: 25px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(225, 6, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: repeating-linear-gradient(
+                45deg,
+                transparent,
+                transparent 2px,
+                rgba(255, 255, 255, 0.1) 2px,
+                rgba(255, 255, 255, 0.1) 4px
+            );
+            animation: slidePattern 20s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes slidePattern {
+            0% { transform: translateX(-50px) translateY(-50px); }
+            100% { transform: translateX(50px) translateY(50px); }
+        }
+
+        .header h1 {
+            margin: 0;
+            font-family: 'Orbitron', monospace;
+            font-size: 3em;
+            font-weight: 900;
+            text-shadow: 
+                0 0 10px rgba(255, 255, 255, 0.5),
+                0 0 20px rgba(225, 6, 0, 0.5),
+                0 0 40px rgba(225, 6, 0, 0.3);
+            letter-spacing: 3px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .race-info {
+            background: linear-gradient(135deg, #1a1a1a 0%, #333 50%, #1a1a1a 100%);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 4px solid #e10600;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            position: relative;
+        }
+
+        .race-info::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #e10600, #ff4444, #e10600);
+            animation: racingStripe 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes racingStripe {
+            0% { transform: scaleX(1); opacity: 1; }
+            100% { transform: scaleX(1.05); opacity: 0.8; }
+        }
+
+        .race-time {
+            font-family: 'Orbitron', monospace;
+            font-size: 2.2em;
+            font-weight: 700;
+            color: #00ff00;
+            text-shadow: 
+                0 0 10px rgba(0, 255, 0, 0.8),
+                0 0 20px rgba(0, 255, 0, 0.4);
+            animation: digitalPulse 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes digitalPulse {
+            0% { text-shadow: 0 0 10px rgba(0, 255, 0, 0.8), 0 0 20px rgba(0, 255, 0, 0.4); }
+            100% { text-shadow: 0 0 15px rgba(0, 255, 0, 1), 0 0 30px rgba(0, 255, 0, 0.6); }
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #00aa00, #00ff00);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0, 170, 0, 0.4);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #cc0000, #ff0000);
+            color: white;
+            box-shadow: 0 4px 15px rgba(204, 0, 0, 0.4);
+        }
+
+        .btn-reset {
+            background: linear-gradient(135deg, #666, #999);
+            color: white;
+            box-shadow: 0 4px 15px rgba(102, 102, 102, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .btn:active {
+            transform: translateY(-1px) scale(1.02);
+        }
+
+        .connection-status {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 600;
+            font-family: 'Orbitron', monospace;
+            margin-left: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .connected {
+            background: linear-gradient(135deg, #00aa00, #00ff00);
+            color: white;
+            animation: connectedPulse 2s infinite;
+            box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+        }
+
+        .connected::before {
+            content: '';
+            position: absolute;
+            left: -100%;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: connectedSweep 3s infinite;
+        }
+
+        @keyframes connectedPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.9; }
+        }
+
+        @keyframes connectedSweep {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .disconnected {
+            background: linear-gradient(135deg, #cc0000, #ff0000);
+            color: white;
+            animation: disconnectedBlink 1s infinite;
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.4);
+        }
+
+        @keyframes disconnectedBlink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0.5; }
+        }
+
+        .timing-table {
+            margin: 25px;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 50%, #1a1a1a 100%);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 
+                0 15px 35px rgba(0,0,0,0.5),
+                0 5px 15px rgba(0,0,0,0.3),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            border: 1px solid rgba(225, 6, 0, 0.3);
+        }
+
+        .comparison-controls {
+            background: #333;
+            padding: 15px;
+            margin: 20px;
+            border-radius: 10px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .comparison-controls label {
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .comparison-controls select, .comparison-controls input {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #444;
+            color: #fff;
+        }
+
+        .table-header {
+            background: linear-gradient(135deg, #2a2a2a 0%, #3a3a3a 50%, #2a2a2a 100%);
+            padding: 20px 0;
+            display: grid;
+            grid-template-columns: 80px 140px 130px 160px 150px 150px 130px;
+            gap: 15px;
+            font-weight: 700;
+            font-size: 1.2em;
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border-bottom: 3px solid #e10600;
+            position: relative;
+        }
+
+        .table-header::after {
+            content: '';
+            position: absolute;
+            bottom: -3px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, #e10600, #ff4444, #ffd700, #ff4444, #e10600);
+            animation: headerGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes headerGlow {
+            0%, 100% { opacity: 1; transform: scaleY(1); }
+            50% { opacity: 0.8; transform: scaleY(1.2); }
+        }
+
+        .table-header div {
+            text-align: center;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .car-row {
+            display: grid;
+            grid-template-columns: 80px 140px 130px 160px 150px 150px 130px;
+            gap: 15px;
+            padding: 16px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 500;
+            animation: slideInFromRight 0.6s ease-out;
+        }
+
+        @keyframes slideInFromRight {
+            0% { 
+                opacity: 0; 
+                transform: translateX(50px); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: translateX(0); 
+            }
+        }
+
+        .car-row::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1));
+            transition: width 0.3s ease;
+        }
+
+        .car-row:hover {
+            background: rgba(255,255,255,0.05);
+            transform: scale(1.02) translateZ(0);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+
+        .car-row:hover::before {
+            width: 100%;
+        }
+
+        .car-row.position-1 {
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 215, 0, 0.1) 30%, transparent 100%);
+            border-left: 6px solid #ffd700;
+            animation: goldShimmer 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes goldShimmer {
+            0% { 
+                background: linear-gradient(90deg, rgba(255, 215, 0, 0.3) 0%, rgba(255, 215, 0, 0.1) 30%, transparent 100%);
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.2);
+            }
+            100% { 
+                background: linear-gradient(90deg, rgba(255, 215, 0, 0.4) 0%, rgba(255, 215, 0, 0.15) 30%, transparent 100%);
+                box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            }
+        }
+
+        .car-row.position-2 {
+            background: linear-gradient(90deg, rgba(192, 192, 192, 0.3) 0%, rgba(192, 192, 192, 0.1) 30%, transparent 100%);
+            border-left: 6px solid #c0c0c0;
+            animation: silverShimmer 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes silverShimmer {
+            0% { 
+                background: linear-gradient(90deg, rgba(192, 192, 192, 0.3) 0%, rgba(192, 192, 192, 0.1) 30%, transparent 100%);
+                box-shadow: 0 0 15px rgba(192, 192, 192, 0.2);
+            }
+            100% { 
+                background: linear-gradient(90deg, rgba(192, 192, 192, 0.4) 0%, rgba(192, 192, 192, 0.15) 30%, transparent 100%);
+                box-shadow: 0 0 25px rgba(192, 192, 192, 0.3);
+            }
+        }
+
+        .car-row.position-3 {
+            background: linear-gradient(90deg, rgba(205, 127, 50, 0.3) 0%, rgba(205, 127, 50, 0.1) 30%, transparent 100%);
+            border-left: 6px solid #cd7f32;
+            animation: bronzeShimmer 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes bronzeShimmer {
+            0% { 
+                background: linear-gradient(90deg, rgba(205, 127, 50, 0.3) 0%, rgba(205, 127, 50, 0.1) 30%, transparent 100%);
+                box-shadow: 0 0 15px rgba(205, 127, 50, 0.2);
+            }
+            100% { 
+                background: linear-gradient(90deg, rgba(205, 127, 50, 0.4) 0%, rgba(205, 127, 50, 0.15) 30%, transparent 100%);
+                box-shadow: 0 0 25px rgba(205, 127, 50, 0.3);
+            }
+        }
+
+        .car-row.highlighted {
+            background: linear-gradient(90deg, rgba(0, 102, 204, 0.3) 0%, rgba(0, 102, 204, 0.1) 30%, transparent 100%);
+            border-left: 6px solid #0066cc;
+            animation: highlightPulse 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes highlightPulse {
+            0% { 
+                background: linear-gradient(90deg, rgba(0, 102, 204, 0.3) 0%, rgba(0, 102, 204, 0.1) 30%, transparent 100%);
+            }
+            100% { 
+                background: linear-gradient(90deg, rgba(0, 102, 204, 0.5) 0%, rgba(0, 102, 204, 0.2) 30%, transparent 100%);
+            }
+        }
+
+        .car-row.position-up {
+            animation: positionUp 0.8s ease-out;
+            background: linear-gradient(90deg, rgba(0, 255, 0, 0.2) 0%, transparent 50%);
+        }
+
+        .car-row.position-down {
+            animation: positionDown 0.8s ease-out;
+            background: linear-gradient(90deg, rgba(255, 0, 0, 0.2) 0%, transparent 50%);
+        }
+
+        @keyframes positionUp {
+            0% { 
+                transform: translateY(20px) scale(1.05);
+                background: linear-gradient(90deg, rgba(0, 255, 0, 0.4) 0%, transparent 50%);
+                box-shadow: 0 0 25px rgba(0, 255, 0, 0.4);
+            }
+            50% {
+                transform: translateY(-5px) scale(1.03);
+                background: linear-gradient(90deg, rgba(0, 255, 0, 0.3) 0%, transparent 50%);
+            }
+            100% { 
+                transform: translateY(0) scale(1);
+                background: linear-gradient(90deg, rgba(0, 255, 0, 0.1) 0%, transparent 50%);
+            }
+        }
+
+        @keyframes positionDown {
+            0% { 
+                transform: translateY(-20px) scale(1.05);
+                background: linear-gradient(90deg, rgba(255, 0, 0, 0.4) 0%, transparent 50%);
+                box-shadow: 0 0 25px rgba(255, 0, 0, 0.4);
+            }
+            50% {
+                transform: translateY(5px) scale(1.03);
+                background: linear-gradient(90deg, rgba(255, 0, 0, 0.3) 0%, transparent 50%);
+            }
+            100% { 
+                transform: translateY(0) scale(1);
+                background: linear-gradient(90deg, rgba(255, 0, 0, 0.1) 0%, transparent 50%);
+            }
+        }
+
+        .car-row.updated {
+            animation: dataUpdate 0.6s ease-in-out;
+        }
+
+        @keyframes dataUpdate {
+            0% { 
+                background-color: rgba(0, 255, 136, 0.4);
+                box-shadow: 0 0 20px rgba(0, 255, 136, 0.3);
+            }
+            50% { 
+                background-color: rgba(0, 255, 136, 0.6);
+                box-shadow: 0 0 30px rgba(0, 255, 136, 0.5);
+            }
+            100% { 
+                background-color: transparent;
+                box-shadow: none;
+            }
+        }
+
+        .car-row div {
+            text-align: center;
+            padding: 0 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1em;
+            font-weight: 500;
+        }
+
+        .position {
+            font-weight: 900;
+            font-size: 1.6em;
+            font-family: 'Orbitron', monospace;
+            color: #ffffff;
+            text-shadow: 
+                0 0 10px rgba(255, 255, 255, 0.5),
+                0 2px 4px rgba(0, 0, 0, 0.5);
+            animation: positionGlow 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes positionGlow {
+            0% { text-shadow: 0 0 10px rgba(255, 255, 255, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5); }
+            100% { text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 2px 6px rgba(0, 0, 0, 0.7); }
+        }
+
+        .truck-name {
+            font-weight: 700;
+            font-size: 1.1em;
+            font-family: 'Rajdhani', sans-serif;
+            background: linear-gradient(135deg, #e10600, #ff4444);
+            color: white;
+            border-radius: 12px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 35px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: 
+                0 4px 15px rgba(225, 6, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .truck-name::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: nameSweep 3s infinite;
+        }
+
+        @keyframes nameSweep {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .speed {
+            color: #00ff88;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.1em;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            animation: speedPulse 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes speedPulse {
+            0% { 
+                color: #00ff88;
+                text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            }
+            100% { 
+                color: #00ffaa;
+                text-shadow: 0 0 15px rgba(0, 255, 170, 0.7);
+            }
+        }
+
+        .distance {
+            color: #88ccff;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-shadow: 0 0 8px rgba(136, 204, 255, 0.4);
+        }
+
+        .gap-leader {
+            color: #ffaa00;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            text-shadow: 0 0 8px rgba(255, 170, 0, 0.5);
+        }
+
+        .gap-ahead {
+            color: #ff8888;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-shadow: 0 0 8px rgba(255, 136, 136, 0.4);
+        }
+
+        .status {
+            font-size: 0.95em;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-family: 'Rajdhani', sans-serif;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status.running {
+            background: linear-gradient(135deg, #00aa00, #00ff00);
+            color: white;
+            animation: runningStatus 2s ease-in-out infinite;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+        }
+
+        .status.running::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+            animation: statusSweep 2s infinite;
+        }
+
+        @keyframes runningStatus {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        @keyframes statusSweep {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .status.stopped {
+            background: linear-gradient(135deg, #cc0000, #ff0000);
+            color: white;
+            animation: stoppedBlink 1.5s infinite;
+        }
+
+        @keyframes stoppedBlink {
+            0%, 70% { opacity: 1; }
+            71%, 100% { opacity: 0.6; }
+        }
+
+        .leader-badge {
+            background: linear-gradient(135deg, #ffd700, #ffed4e);
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            animation: leaderPulse 2s ease-in-out infinite;
+            box-shadow: 
+                0 0 20px rgba(255, 215, 0, 0.6),
+                0 2px 10px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes leaderPulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 2px 10px rgba(0, 0, 0, 0.3);
+            }
+            50% { 
+                transform: scale(1.1);
+                box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), 0 4px 15px rgba(0, 0, 0, 0.4);
+            }
+        }
+
+        .comparison-section {
+            margin: 20px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            display: none;
+        }
+
+        .comparison-header {
+            background: linear-gradient(90deg, #0066cc 0%, #0088ff 100%);
+            padding: 15px;
+            color: white;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes flashUpdate {
+            0% { background-color: rgba(0, 255, 136, 0.3); }
+            50% { background-color: rgba(0, 255, 136, 0.6); }
+            100% { background-color: transparent; }
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+
+        .live-indicator {
+            animation: livePulse 1.5s infinite;
+            color: #ff0000;
+            font-weight: 700;
+            font-family: 'Orbitron', monospace;
+            text-shadow: 
+                0 0 10px rgba(255, 0, 0, 0.8),
+                0 0 20px rgba(255, 0, 0, 0.4);
+            font-size: 1.1em;
+        }
+
+        @keyframes livePulse {
+            0%, 100% { 
+                opacity: 1; 
+                transform: scale(1);
+                text-shadow: 0 0 10px rgba(255, 0, 0, 0.8), 0 0 20px rgba(255, 0, 0, 0.4);
+            }
+            50% { 
+                opacity: 0.7; 
+                transform: scale(1.1);
+                text-shadow: 0 0 15px rgba(255, 0, 0, 1), 0 0 30px rgba(255, 0, 0, 0.6);
+            }
+        }
+
+        /* Speed Indicators */
+        .speed-trend {
+            display: inline-block;
+            margin-left: 8px;
+            font-size: 0.8em;
+        }
+
+        .speed-increasing {
+            color: #00ff00;
+            animation: speedUp 0.5s ease-in-out infinite alternate;
+        }
+
+        .speed-decreasing {
+            color: #ff0000;
+            animation: speedDown 0.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes speedUp {
+            0% { transform: translateY(0); opacity: 0.7; }
+            100% { transform: translateY(-2px); opacity: 1; }
+        }
+
+        @keyframes speedDown {
+            0% { transform: translateY(0); opacity: 0.7; }
+            100% { transform: translateY(2px); opacity: 1; }
+        }
+
+        /* Gap Indicators */
+        .gap-improving {
+            animation: gapImproving 1s ease-in-out infinite alternate;
+        }
+
+        .gap-losing {
+            animation: gapLosing 1s ease-in-out infinite alternate;
+        }
+
+        @keyframes gapImproving {
+            0% { color: #ffaa00; }
+            100% { color: #00ff00; }
+        }
+
+        @keyframes gapLosing {
+            0% { color: #ff8888; }
+            100% { color: #ff0000; }
+        }
+
+        /* Enhanced Responsive design with better mobile support */
+        @media (max-width: 1400px) {
+            .table-header, .car-row {
+                grid-template-columns: 70px 130px 120px 150px 140px 140px 120px;
+                font-size: 0.95em;
+            }
+        }
+
+        @media (max-width: 1200px) {
+            .table-header, .car-row {
+                grid-template-columns: 60px 120px 110px 140px 130px 130px 110px;
+                font-size: 0.9em;
+            }
+            
+            .header h1 {
+                font-size: 2.5em;
+            }
+        }
+
+        @media (max-width: 900px) {
+            .table-header, .car-row {
+                grid-template-columns: 50px 100px 90px 120px 110px 110px;
+                gap: 10px;
+            }
+            
+            .status { display: none; }
+            .comparison-controls { 
+                flex-direction: column; 
+                align-items: stretch;
+                gap: 10px;
+            }
+            
+            .race-info {
+                flex-direction: column;
+                gap: 15px;
+                text-align: center;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .table-header, .car-row {
+                grid-template-columns: 40px 80px 70px 90px 90px;
+                font-size: 0.8em;
+            }
+            
+            .gap-ahead { display: none; }
+            
+            .timing-table {
+                margin: 15px;
+            }
+            
+            .header h1 {
+                font-size: 1.5em;
+                letter-spacing: 1px;
+            }
+        }
+
+        /* Position change indicators */
+        .position-change-indicator {
+            font-size: 0.7em;
+            margin-left: 5px;
+            animation: positionChangeFlash 1s ease-out;
+        }
+
+        @keyframes positionChangeFlash {
+            0% { 
+                opacity: 0;
+                transform: scale(0);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
+            100% {
+                opacity: 0.8;
+                transform: scale(1);
+            }
+        }
+
+        /* Notification animations */
+        @keyframes slideInNotification {
+            0% {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutNotification {
+            0% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        /* Flag animation */
+        @keyframes flagWave {
+            0% {
+                transform: translate(-50%, -50%) scale(0) rotate(0deg);
+                opacity: 0;
+            }
+            50% {
+                transform: translate(-50%, -50%) scale(1.2) rotate(10deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(1) rotate(0deg);
+                opacity: 0;
+            }
+        }
+
+        /* Advanced hover effects */
+        .car-row:hover .truck-name {
+            transform: scale(1.05);
+            box-shadow: 
+                0 6px 20px rgba(225, 6, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        .car-row:hover .position {
+            transform: scale(1.1);
+            text-shadow: 
+                0 0 15px rgba(255, 255, 255, 1),
+                0 2px 8px rgba(0, 0, 0, 0.8);
+        }
+
+        /* Performance indicators */
+        .performance-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #00ff00;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.8em;
+            z-index: 1000;
+        }
+
+        /* Temporary highlight for keyboard shortcuts */
+        .car-row.temp-highlight {
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%) !important;
+            border: 2px solid rgba(255, 255, 255, 0.6) !important;
+            transform: scale(1.03) !important;
+            animation: tempHighlight 3s ease-out;
+        }
+
+        @keyframes tempHighlight {
+            0% {
+                background: linear-gradient(90deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+                box-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+            }
+            100% {
+                background: linear-gradient(90deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.05) 50%, transparent 100%);
+                box-shadow: none;
+            }
+        }
+
+        /* Help Overlay */
+        .help-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeInOverlay 0.3s ease-out;
+        }
+
+        .help-content {
+            background: linear-gradient(135deg, #1a1a1a, #2a2a2a);
+            border-radius: 15px;
+            padding: 40px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 2px solid #e10600;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+        }
+
+        .help-content h2 {
+            color: #e10600;
+            font-family: 'Orbitron', monospace;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .help-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .help-section h3 {
+            color: #ffd700;
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #444;
+            padding-bottom: 5px;
+        }
+
+        .shortcut {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            color: #fff;
+            font-family: 'Rajdhani', sans-serif;
+        }
+
+        .shortcut kbd {
+            background: #333;
+            border: 1px solid #555;
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.9em;
+            color: #ffd700;
+        }
+
+        @keyframes fadeInOverlay {
+            0% { opacity: 0; transform: scale(0.9); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏁 F1 LIVE TIMING 🏁</h1>
+    </div>
+
+    <div class="race-info">
+        <div>
+            <span class="live-indicator">● LIVE</span>
+            <span class="race-time" id="raceTime">00:00:00</span>
+            <span class="connection-status" id="connectionStatus">CONNECTING...</span>
+        </div>
+        <div>
+            <span id="currentTime">--:--:--</span>
+        </div>
+        <div class="controls">
+            <button class="btn btn-start" onclick="startRace()">START</button>
+            <button class="btn btn-stop" onclick="stopRace()">STOP</button>
+            <button class="btn btn-reset" onclick="resetRace()">RESET</button>
+            <button class="btn" onclick="toggleHelpOverlay()" style="background: linear-gradient(135deg, #444, #666);">HELP</button>
+        </div>
+    </div>
+
+    <!-- Help Overlay -->
+    <div id="helpOverlay" class="help-overlay" style="display: none;">
+        <div class="help-content">
+            <h2>🏁 F1 Live Timing - Keyboard Shortcuts</h2>
+            <div class="help-grid">
+                <div class="help-section">
+                    <h3>Race Control</h3>
+                    <div class="shortcut"><kbd>Space</kbd> Start/Stop Race</div>
+                    <div class="shortcut"><kbd>Ctrl+R</kbd> Reset Race</div>
+                    <div class="shortcut"><kbd>M</kbd> Toggle Ranking Mode</div>
+                </div>
+                <div class="help-section">
+                    <h3>Display Options</h3>
+                    <div class="shortcut"><kbd>Ctrl+C</kbd> Toggle Comparison</div>
+                    <div class="shortcut"><kbd>F</kbd> Toggle Fullscreen</div>
+                    <div class="shortcut"><kbd>P</kbd> Toggle Performance</div>
+                </div>
+                <div class="help-section">
+                    <h3>Position Highlights</h3>
+                    <div class="shortcut"><kbd>Alt+1-5</kbd> Highlight Position</div>
+                    <div class="shortcut"><kbd>Esc</kbd> Close Help</div>
+                </div>
+            </div>
+            <button class="btn btn-stop" onclick="toggleHelpOverlay()">CLOSE</button>
+        </div>
+    </div>
+
+    <div class="comparison-controls">
+        <label for="rankingMode">Ranking Mode:</label>
+        <select id="rankingMode" onchange="updateRankingMode()">
+            <option value="distance" selected>By Distance (Race Position)</option>
+            <option value="speed">By Speed (Fastest to Slowest)</option>
+        </select>
+        
+        <label for="comparisonStart">Compare from position:</label>
+        <select id="comparisonStart" onchange="updateComparison()">
+            <option value="1">1st</option>
+            <option value="6">6th</option>
+            <option value="11">11th</option>
+            <option value="16">16th</option>
+        </select>
+        
+        <label for="comparisonCount">Number of trucks:</label>
+        <select id="comparisonCount" onchange="updateComparison()">
+            <option value="5" selected>5 trucks</option>
+            <option value="3">3 trucks</option>
+            <option value="10">10 trucks</option>
+        </select>
+        
+        <button class="btn btn-start" onclick="toggleComparison()">Show Comparison</button>
+    </div>
+
+    <div class="timing-table">
+        <div class="table-header">
+            <div>POS</div>
+            <div>TRUCK</div>
+            <div>SPEED</div>
+            <div>DISTANCE</div>
+            <div>GAP TO LEADER</div>
+            <div>GAP TO AHEAD</div>
+            <div>STATUS</div>
+        </div>
+        
+        <div id="timingData">
+            <!-- Race data will appear here -->
+        </div>
+    </div>
+
+    <div class="comparison-section" id="comparisonSection">
+        <div class="comparison-header">
+            <span id="comparisonTitle">Comparison: Positions 1-5</span>
+        </div>
+        <div class="table-header">
+            <div>POS</div>
+            <div>TRUCK</div>
+            <div>SPEED</div>
+            <div>DISTANCE</div>
+            <div>GAP TO LEADER</div>
+            <div>GAP TO AHEAD</div>
+            <div>STATUS</div>
+        </div>
+        <div id="comparisonData">
+            <!-- Comparison data will be loaded here -->
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        const socket = io();
+        let isLive = false;
+        let comparisonVisible = false;
+        let rankingMode = 'distance';
+        let previousRankings = [];
+        let previousSpeedData = {};
+        let previousGapData = {};
+
+        // Performance tracking
+        let updateCounter = 0;
+        let lastUpdateTime = Date.now();
+
+        // Connection status handling
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            updateConnectionStatus(true);
+            socket.emit('request_data'); // Request initial data
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            updateConnectionStatus(false);
+        });
+
+        socket.on('reconnect', function() {
+            console.log('Reconnected to server');
+            updateConnectionStatus(true);
+            socket.emit('request_data'); // Request data after reconnection
+        });
+
+        // Real-time data updates with enhanced effects
+        socket.on('timing_update', function(data) {
+            updateCounter++;
+            const currentTime = Date.now();
+            const deltaTime = currentTime - lastUpdateTime;
+            lastUpdateTime = currentTime;
+            
+            // Add performance metrics
+            data.updateCounter = updateCounter;
+            data.deltaTime = deltaTime;
+            
+            updateTimingDisplay(data);
+        });
+
+        socket.on('race_status', function(data) {
+            console.log('Race status:', data.status);
+            showStatusNotification(data.status.toUpperCase(), getStatusColor(data.status));
+        });
+
+        socket.on('race_finished', function(data) {
+            console.log('Race finished:', data.message);
+            showStatusNotification('RACE FINISHED', '#ffd700');
+            showCheckedFlag();
+        });
+
+        function showStatusNotification(message, color = '#e10600') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, ${color}, ${adjustColor(color, 30)});
+                color: white;
+                padding: 15px 25px;
+                border-radius: 10px;
+                font-family: 'Orbitron', monospace;
+                font-weight: 700;
+                z-index: 10000;
+                box-shadow: 0 5px 20px rgba(0,0,0,0.5);
+                animation: slideInNotification 0.5s ease-out;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.animation = 'slideOutNotification 0.5s ease-in forwards';
+                setTimeout(() => document.body.removeChild(notification), 500);
+            }, 3000);
+        }
+
+        function getStatusColor(status) {
+            switch(status) {
+                case 'started': return '#00aa00';
+                case 'stopped': return '#cc0000';
+                case 'reset': return '#666';
+                default: return '#e10600';
+            }
+        }
+
+        function adjustColor(color, amount) {
+            const hex = color.slice(1);
+            const num = parseInt(hex, 16);
+            const r = Math.min(255, Math.max(0, (num >> 16) + amount));
+            const g = Math.min(255, Math.max(0, (num >> 8 & 0x00FF) + amount));
+            const b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+            return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
+        }
+
+        function showCheckedFlag() {
+            const flag = document.createElement('div');
+            flag.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 100px;
+                z-index: 10000;
+                animation: flagWave 2s ease-out forwards;
+            `;
+            flag.innerHTML = '🏁';
+            document.body.appendChild(flag);
+
+            setTimeout(() => document.body.removeChild(flag), 2000);
+        }
+
+        // Connection status handling
+        socket.on('connect', function() {
+            console.log('Connected to server');
+            updateConnectionStatus(true);
+            socket.emit('request_data'); // Request initial data
+        });
+
+        socket.on('disconnect', function() {
+            console.log('Disconnected from server');
+            updateConnectionStatus(false);
+        });
+
+        socket.on('reconnect', function() {
+            console.log('Reconnected to server');
+            updateConnectionStatus(true);
+            socket.emit('request_data'); // Request data after reconnection
+        });
+
+        // Real-time data updates
+        socket.on('timing_update', function(data) {
+            updateTimingDisplay(data);
+        });
+
+        socket.on('race_status', function(data) {
+            console.log('Race status:', data.status);
+        });
+
+        socket.on('race_finished', function(data) {
+            console.log('Race finished:', data.message);
+        });
+
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.textContent = 'CONNECTED';
+                statusEl.className = 'connection-status connected';
+            } else {
+                statusEl.textContent = 'DISCONNECTED';
+                statusEl.className = 'connection-status disconnected';
+            }
+        }
+
+        function formatTime(seconds) {
+            if (seconds === 0) return "Leader";
+            if (seconds === Infinity || seconds > 10000) return "DNF";
+            
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            
+            if (mins > 0) {
+                return `+${mins}:${secs.toFixed(1).padStart(4, '0')}`;
+            } else {
+                return `+${secs.toFixed(2)}s`;
+            }
+        }
+
+        function formatDistance(meters) {
+            if (meters > 1000) {
+                return `${(meters / 1000).toFixed(2)}km`;
+            } else {
+                return `${meters.toFixed(0)}m`;
+            }
+        }
+
+        function formatSpeedGap(speedDiff) {
+            if (speedDiff === 0) return "Fastest";
+            return `-${speedDiff.toFixed(1)} km/h`;
+        }
+
+        function sortRankings(rankings, mode) {
+            if (mode === 'speed') {
+                return rankings.slice().sort((a, b) => b.current_speed - a.current_speed);
+            } else {
+                return rankings.slice().sort((a, b) => b.distance_traveled - a.distance_traveled);
+            }
+        }
+
+        function calculateSpeedRankings(rankings) {
+            const speedSorted = rankings.slice().sort((a, b) => b.current_speed - a.current_speed);
+            const fastestSpeed = speedSorted.length > 0 ? speedSorted[0].current_speed : 0;
+            const leaderDistance = speedSorted.length > 0 ? speedSorted[0].distance_traveled : 0;
+            
+            return speedSorted.map((car, index) => {
+                const speedGapToLeader = fastestSpeed - car.current_speed;
+                const speedGapToAhead = index === 0 ? 0 : speedSorted[index - 1].current_speed - car.current_speed;
+                
+                const distanceGapToLeader = leaderDistance - car.distance_traveled;
+                const distanceGapToAhead = index === 0 ? 0 : speedSorted[index - 1].distance_traveled - car.distance_traveled;
+                
+                const currentSpeedMs = Math.max(car.current_speed * 1000 / 3600, 1);
+                const timeGapToLeader = distanceGapToLeader / currentSpeedMs;
+                const timeGapToAhead = distanceGapToAhead / currentSpeedMs;
+                
+                return {
+                    ...car,
+                    position: index + 1,
+                    speed_gap_to_leader: speedGapToLeader,
+                    speed_gap_to_ahead: speedGapToAhead,
+                    gap_to_leader: timeGapToLeader,
+                    gap_to_ahead: timeGapToAhead,
+                    distance_relative_to_leader: distanceGapToLeader
+                };
+            });
+        }
+
+        function updateRankingMode() {
+            rankingMode = document.getElementById('rankingMode').value;
+            
+            const tableHeaders = document.querySelector('.timing-table .table-header');
+            if (tableHeaders) {
+                if (rankingMode === 'speed') {
+                    tableHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE GAP</div>
+                        <div>SPEED GAP</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                } else {
+                    tableHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE</div>
+                        <div>GAP TO LEADER</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                }
+            }
+            
+            const comparisonHeaders = document.querySelector('.comparison-section .table-header');
+            if (comparisonHeaders) {
+                if (rankingMode === 'speed') {
+                    comparisonHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE GAP</div>
+                        <div>SPEED GAP</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                } else {
+                    comparisonHeaders.innerHTML = `
+                        <div>POS</div>
+                        <div>TRUCK</div>
+                        <div>SPEED</div>
+                        <div>DISTANCE</div>
+                        <div>GAP TO LEADER</div>
+                        <div>GAP TO AHEAD</div>
+                        <div>STATUS</div>
+                    `;
+                }
+            }
+            
+            socket.emit('request_data');
+        }
+
+        function detectPositionChanges(newRankings, oldRankings) {
+            const changes = new Map();
+            
+            if (!oldRankings || oldRankings.length === 0) return changes;
+            
+            const oldPositions = {};
+            oldRankings.forEach(car => {
+                oldPositions[car.car_id] = car.position;
+            });
+            
+            newRankings.forEach(car => {
+                const oldPos = oldPositions[car.car_id];
+                if (oldPos && oldPos !== car.position) {
+                    const direction = oldPos > car.position ? 'up' : 'down';
+                    const change = Math.abs(oldPos - car.position);
+                    changes.set(car.car_id, {
+                        direction: direction,
+                        positions: change,
+                        from: oldPos,
+                        to: car.position
+                    });
+                }
+            });
+            
+            return changes;
+        }
+
+        function detectSpeedChanges(newRankings) {
+            const speedChanges = new Map();
+            
+            newRankings.forEach(car => {
+                const prevSpeed = previousSpeedData[car.car_id];
+                if (prevSpeed !== undefined) {
+                    const speedDiff = car.current_speed - prevSpeed;
+                    if (Math.abs(speedDiff) > 0.5) { // Threshold for significant speed change
+                        speedChanges.set(car.car_id, {
+                            direction: speedDiff > 0 ? 'increasing' : 'decreasing',
+                            change: Math.abs(speedDiff)
+                        });
+                    }
+                }
+                previousSpeedData[car.car_id] = car.current_speed;
+            });
+            
+            return speedChanges;
+        }
+
+        function detectGapChanges(newRankings) {
+            const gapChanges = new Map();
+            
+            newRankings.forEach(car => {
+                const prevGap = previousGapData[car.car_id];
+                if (prevGap !== undefined && car.gap_to_leader > 0) {
+                    const gapDiff = car.gap_to_leader - prevGap;
+                    if (Math.abs(gapDiff) > 0.1) { // Threshold for significant gap change
+                        gapChanges.set(car.car_id, {
+                            direction: gapDiff < 0 ? 'improving' : 'losing',
+                            change: Math.abs(gapDiff)
+                        });
+                    }
+                }
+                previousGapData[car.car_id] = car.gap_to_leader;
+            });
+            
+            return gapChanges;
+        }
+
+        function generateCarRow(car, index, isComparison = false, positionChange = null, speedChange = null, gapChange = null) {
+            const positionClass = index < 3 ? `position-${index + 1}` : '';
+            const highlightClass = isComparison ? 'highlighted' : '';
+            
+            let animationClass = '';
+            if (positionChange) {
+                animationClass = positionChange.direction === 'up' ? 'position-up' : 'position-down';
+            }
+            
+            let gapToLeader, gapToAhead, distanceDisplay;
+            
+            if (rankingMode === 'speed') {
+                gapToLeader = car.speed_gap_to_leader !== undefined ? formatSpeedGap(car.speed_gap_to_leader) : formatSpeedGap(0);
+                gapToAhead = car.speed_gap_to_ahead !== undefined ? (car.speed_gap_to_ahead === 0 ? "Fastest" : `-${car.speed_gap_to_ahead.toFixed(1)} km/h`) : formatSpeedGap(0);
+                distanceDisplay = car.distance_relative_to_leader !== undefined ? 
+                    (car.distance_relative_to_leader === 0 ? formatDistance(car.distance_traveled) : 
+                     `-${formatDistance(Math.abs(car.distance_relative_to_leader))}`) : 
+                    formatDistance(car.distance_traveled);
+            } else {
+                gapToLeader = formatTime(car.gap_to_leader);
+                gapToAhead = formatTime(car.gap_to_ahead);
+                distanceDisplay = formatDistance(car.distance_traveled);
+            }
+
+            // Add trend indicators
+            const speedTrend = speedChange ? 
+                `<span class="speed-trend speed-${speedChange.direction}">${speedChange.direction === 'increasing' ? '↗' : '↘'}</span>` : '';
+            
+            const gapClass = gapChange ? `gap-${gapChange.direction}` : '';
+            
+            // Position change indicator
+            const positionIndicator = positionChange ? 
+                `<span class="position-change-indicator">${positionChange.direction === 'up' ? '▲' : '▼'}${positionChange.positions}</span>` : '';
+            
+            return `
+                <div class="car-row ${positionClass} ${highlightClass} ${animationClass}" data-car-id="${car.car_id}" data-position="${car.position}">
+                    <div class="position">
+                        ${car.position}
+                        ${positionIndicator}
+                    </div>
+                    <div class="truck-name">${car.truck_name || 'TRUCK' + car.car_id}</div>
+                    <div class="speed">
+                        ${car.current_speed.toFixed(1)} km/h
+                        ${speedTrend}
+                    </div>
+                    <div class="distance">${distanceDisplay}</div>
+                    <div class="gap-leader ${gapClass}">${gapToLeader}</div>
+                    <div class="gap-ahead">${gapToAhead}</div>
+                    <div class="status ${isLive ? 'running' : 'stopped'}">
+                        ${index === 0 ? '<span class="leader-badge">LEADER</span>' : (isLive ? 'RACING' : 'STOPPED')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateTimingDisplay(data) {
+            const raceTimeEl = document.getElementById('raceTime');
+            const currentTimeEl = document.getElementById('currentTime');
+            const timingDataEl = document.getElementById('timingData');
+
+            // Enhanced time display with milliseconds
+            const raceMinutes = Math.floor(data.race_time / 60);
+            const raceSeconds = data.race_time % 60;
+            raceTimeEl.textContent = `${raceMinutes.toString().padStart(2, '0')}:${raceSeconds.toFixed(2).padStart(6, '0')}`;
+            currentTimeEl.textContent = data.current_time;
+
+            if (data.rankings && data.rankings.length > 0) {
+                let displayRankings;
+                
+                if (rankingMode === 'speed') {
+                    displayRankings = calculateSpeedRankings(data.rankings);
+                } else {
+                    displayRankings = data.rankings;
+                }
+                
+                // Detect various changes
+                const positionChanges = detectPositionChanges(displayRankings, previousRankings);
+                const speedChanges = detectSpeedChanges(displayRankings);
+                const gapChanges = detectGapChanges(displayRankings);
+                
+                // Animate position changes with staggered timing
+                let html = '';
+                displayRankings.forEach((car, index) => {
+                    const positionChange = positionChanges.get(car.car_id);
+                    const speedChange = speedChanges.get(car.car_id);
+                    const gapChange = gapChanges.get(car.car_id);
+                    
+                    html += generateCarRow(car, index, false, positionChange, speedChange, gapChange);
+                });
+                
+                // Apply staggered animation delays for smooth updates
+                timingDataEl.innerHTML = html;
+                
+                // Add staggered entry animations
+                const rows = timingDataEl.querySelectorAll('.car-row');
+                rows.forEach((row, index) => {
+                    row.style.animationDelay = `${index * 0.05}s`;
+                });
+                
+                // Highlight significant position changes
+                if (positionChanges.size > 0) {
+                    positionChanges.forEach((change, carId) => {
+                        const row = timingDataEl.querySelector(`[data-car-id="${carId}"]`);
+                        if (row) {
+                            // Add sound effect simulation via visual feedback
+                            if (change.positions >= 2) {
+                                row.style.boxShadow = '0 0 30px rgba(255, 215, 0, 0.8)';
+                                setTimeout(() => {
+                                    row.style.boxShadow = '';
+                                }, 1000);
+                            }
+                        }
+                    });
+                }
+                
+                previousRankings = displayRankings.slice();
+            } else {
+                timingDataEl.innerHTML = '<div>No race data available</div>';
+            }
+
+            isLive = data.is_running;
+
+            // Update live indicator based on data frequency
+            const liveIndicator = document.querySelector('.live-indicator');
+            if (liveIndicator && data.deltaTime) {
+                if (data.deltaTime > 5000) { // More than 5 seconds between updates
+                    liveIndicator.style.color = '#ff8800';
+                    liveIndicator.textContent = '● SLOW';
+                } else if (data.deltaTime > 3000) {
+                    liveIndicator.style.color = '#ffaa00';
+                    liveIndicator.textContent = '● DELAYED';
+                } else {
+                    liveIndicator.style.color = '#ff0000';
+                    liveIndicator.textContent = '● LIVE';
+                }
+            }
+
+            if (comparisonVisible) {
+                updateComparisonDisplay();
+            }
+        }
+
+        function updateComparisonDisplay() {
+            const startPos = parseInt(document.getElementById('comparisonStart').value);
+            const count = parseInt(document.getElementById('comparisonCount').value);
+            
+            fetch(`/api/comparison/${startPos}/${count}`)
+                .then(response => response.json())
+                .then(data => {
+                    const comparisonDataEl = document.getElementById('comparisonData');
+                    const comparisonTitleEl = document.getElementById('comparisonTitle');
+                    
+                    comparisonTitleEl.textContent = `Comparison: Positions ${startPos}-${startPos + count - 1}`;
+                    
+                    if (data.comparison && data.comparison.length > 0) {
+                        let html = '';
+                        data.comparison.forEach((car, index) => {
+                            html += generateCarRow(car, car.position - 1, true);
+                        });
+                        comparisonDataEl.innerHTML = html;
+                    } else {
+                        comparisonDataEl.innerHTML = '<div>No comparison data available</div>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching comparison data:', error);
+                });
+        }
+
+        function startRace() {
+            socket.emit('start_race');
+        }
+
+        function stopRace() {
+            socket.emit('stop_race');
+        }
+
+        function resetRace() {
+            socket.emit('reset_race');
+        }
+
+        function toggleComparison() {
+            const comparisonSection = document.getElementById('comparisonSection');
+            comparisonVisible = !comparisonVisible;
+            
+            if (comparisonVisible) {
+                comparisonSection.style.display = 'block';
+                updateComparisonDisplay();
+                document.querySelector('.comparison-controls button').textContent = 'Hide Comparison';
+            } else {
+                comparisonSection.style.display = 'none';
+                document.querySelector('.comparison-controls button').textContent = 'Show Comparison';
+            }
+        }
+
+        function updateComparison() {
+            if (comparisonVisible) {
+                updateComparisonDisplay();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Page loaded, connecting to WebSocket...');
+            
+            // Add performance indicator
+            const perfIndicator = document.createElement('div');
+            perfIndicator.className = 'performance-indicator';
+            perfIndicator.innerHTML = 'FPS: -- | Updates: 0';
+            document.body.appendChild(perfIndicator);
+            
+            // Update performance indicator
+            setInterval(() => {
+                const fps = Math.round(1000 / (Date.now() - lastUpdateTime + 1));
+                perfIndicator.innerHTML = `FPS: ${fps} | Updates: ${updateCounter}`;
+            }, 1000);
+            
+            fetch('/api/trucks')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Available trucks:', data.trucks);
+                })
+                .catch(error => {
+                    console.error('Error loading truck data:', error);
+                });
+        });
+
+        document.addEventListener('keydown', function(event) {
+            switch(event.code) {
+                case 'Space':
+                    event.preventDefault();
+                    isLive ? stopRace() : startRace();
+                    break;
+                case 'KeyR':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        resetRace();
+                    }
+                    break;
+                case 'KeyC':
+                    if (event.ctrlKey || event.metaKey) {
+                        event.preventDefault();
+                        toggleComparison();
+                    }
+                    break;
+                case 'KeyM':
+                    event.preventDefault();
+                    toggleRankingMode();
+                    break;
+                case 'KeyF':
+                    event.preventDefault();
+                    toggleFullscreen();
+                    break;
+                case 'KeyP':
+                    event.preventDefault();
+                    togglePerformanceIndicator();
+                    break;
+                case 'Escape':
+                    event.preventDefault();
+                    const helpOverlay = document.getElementById('helpOverlay');
+                    if (helpOverlay.style.display !== 'none') {
+                        toggleHelpOverlay();
+                    }
+                    break;
+                case 'Digit1':
+                case 'Digit2':
+                case 'Digit3':
+                case 'Digit4':
+                case 'Digit5':
+                    if (event.altKey) {
+                        event.preventDefault();
+                        highlightPosition(parseInt(event.code.slice(-1)));
+                    }
+                    break;
+            }
+        });
+
+        function toggleHelpOverlay() {
+            const overlay = document.getElementById('helpOverlay');
+            overlay.style.display = overlay.style.display === 'none' ? 'flex' : 'none';
+        }
+
+        function toggleRankingMode() {
+            const modeSelect = document.getElementById('rankingMode');
+            modeSelect.value = modeSelect.value === 'distance' ? 'speed' : 'distance';
+            updateRankingMode();
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function togglePerformanceIndicator() {
+            const indicator = document.querySelector('.performance-indicator');
+            indicator.style.display = indicator.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function highlightPosition(position) {
+            // Remove previous highlights
+            document.querySelectorAll('.car-row.temp-highlight').forEach(row => {
+                row.classList.remove('temp-highlight');
+            });
+            
+            // Add highlight to specific position
+            const targetRow = document.querySelector(`[data-position="${position}"]`);
+            if (targetRow) {
+                targetRow.classList.add('temp-highlight');
+                targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                
+                setTimeout(() => {
+                    targetRow.classList.remove('temp-highlight');
+                }, 3000);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>F1 Simulation Speed Control</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .speed-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .speed-btn {
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            border: none;
+            border-radius: 10px;
+            padding: 15px 20px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .speed-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+        
+        .speed-btn.active {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        
+        .custom-speed {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 20px 0;
+        }
+        
+        .custom-speed input {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+            color: white;
+            width: 100px;
+        }
+        
+        .custom-speed input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .apply-btn {
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+            border: none;
+            border-radius: 8px;
+            padding: 10px 20px;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>⚡ F1 Simulation Speed Control</h1>
+            <p>Control how fast the race simulation runs</p>
+        </div>
+        
+        <div class="card">
+            <h2>📊 Current Status</h2>
+            <div id="status" class="status">
+                <div class="metric">
+                    <span>Simulation Speed:</span>
+                    <span id="current-speed">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span>Race Running:</span>
+                    <span id="race-status">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span>Race Time per Real Time:</span>
+                    <span id="time-ratio">Loading...</span>
+                </div>
+                <div class="metric">
+                    <span>Update Interval:</span>
+                    <span id="update-interval">Loading...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>🎛️ Speed Presets</h2>
+            <div class="speed-controls">
+                <button class="speed-btn" onclick="setSpeed(0.25)">0.25x<br>Very Slow</button>
+                <button class="speed-btn" onclick="setSpeed(0.5)">0.5x<br>Half Speed</button>
+                <button class="speed-btn" onclick="setSpeed(1.0)">1.0x<br>Real Time</button>
+                <button class="speed-btn" onclick="setSpeed(2.0)">2.0x<br>Double</button>
+                <button class="speed-btn" onclick="setSpeed(5.0)">5.0x<br>Fast</button>
+                <button class="speed-btn" onclick="setSpeed(10.0)">10.0x<br>Very Fast</button>
+            </div>
+            
+            <div class="custom-speed">
+                <label>Custom Speed:</label>
+                <input type="number" id="custom-speed" placeholder="1.0" min="0.1" max="10" step="0.1">
+                <button class="apply-btn" onclick="setCustomSpeed()">Apply</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📝 Speed Explanation</h2>
+            <ul>
+                <li><strong>0.25x:</strong> 15 minutes of real time = 1 minute of race time</li>
+                <li><strong>0.5x:</strong> 2 minutes of real time = 1 minute of race time</li>
+                <li><strong>1.0x:</strong> 1 minute of real time = 1 minute of race time (realistic)</li>
+                <li><strong>2.0x:</strong> 30 seconds of real time = 1 minute of race time</li>
+                <li><strong>5.0x:</strong> 12 seconds of real time = 1 minute of race time</li>
+                <li><strong>10.0x:</strong> 6 seconds of real time = 1 minute of race time</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let currentSpeed = 1.0;
+        
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/simulation-speed');
+                const data = await response.json();
+                
+                currentSpeed = data.simulation_speed;
+                document.getElementById('current-speed').textContent = `${data.simulation_speed}x`;
+                document.getElementById('race-status').textContent = data.is_running ? 'Running' : 'Stopped';
+                document.getElementById('time-ratio').textContent = `${data.race_time_per_real_time}s race time per 1s real time`;
+                document.getElementById('update-interval').textContent = `${data.update_interval}s`;
+                
+                // Update active button
+                updateActiveButton();
+                
+            } catch (error) {
+                console.error('Error loading status:', error);
+            }
+        }
+        
+        function updateActiveButton() {
+            document.querySelectorAll('.speed-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            const speedValues = [0.25, 0.5, 1.0, 2.0, 5.0, 10.0];
+            const index = speedValues.indexOf(currentSpeed);
+            if (index !== -1) {
+                document.querySelectorAll('.speed-btn')[index].classList.add('active');
+            }
+        }
+        
+        async function setSpeed(speed) {
+            try {
+                const response = await fetch('/api/simulation-speed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ speed: speed })
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    currentSpeed = speed;
+                    loadStatus(); // Refresh status
+                    showMessage(`Speed set to ${speed}x`, 'success');
+                } else {
+                    showMessage(data.message, 'error');
+                }
+                
+            } catch (error) {
+                console.error('Error setting speed:', error);
+                showMessage('Error setting speed', 'error');
+            }
+        }
+        
+        async function setCustomSpeed() {
+            const speedInput = document.getElementById('custom-speed');
+            const speed = parseFloat(speedInput.value);
+            
+            if (isNaN(speed) || speed < 0.1 || speed > 10) {
+                showMessage('Speed must be between 0.1 and 10', 'error');
+                return;
+            }
+            
+            await setSpeed(speed);
+        }
+        
+        function showMessage(message, type) {
+            // Create a temporary message element
+            const msgDiv = document.createElement('div');
+            msgDiv.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                color: white;
+                font-weight: bold;
+                z-index: 1000;
+                background: ${type === 'success' ? 'linear-gradient(45deg, #56ab2f, #a8e6cf)' : 'linear-gradient(45deg, #ff6b6b, #ee5a52)'};
+            `;
+            msgDiv.textContent = message;
+            document.body.appendChild(msgDiv);
+            
+            setTimeout(() => {
+                document.body.removeChild(msgDiv);
+            }, 3000);
+        }
+        
+        // Load status on page load
+        window.addEventListener('load', loadStatus);
+        
+        // Auto-refresh status every 2 seconds
+        setInterval(loadStatus, 2000);
+        
+        // Handle Enter key in custom speed input
+        document.getElementById('custom-speed').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                setCustomSpeed();
+            }
+        });
+    </script>
+</body>
+</html>

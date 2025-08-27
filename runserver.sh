@@ -1,0 +1,1 @@
+pkill -f f1_live_ui.py && sleep 2 && nohup /Users/socaresabol/POC/test/F1/.venv/bin/python f1_live_ui_modular.py > server.log 2>&1 &
