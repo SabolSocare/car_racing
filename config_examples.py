@@ -90,27 +90,130 @@ def example_custom_data_setup():
     from config import config
     import os
     
-    # Different data directories for different scenarios
+    # Get the current script directory and project root
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = current_dir  # Assuming this script is in the project root
+    
+    # Different data directories for different scenarios (portable paths)
     data_dirs = {
-        'race_2023': '/Users/socaresabol/POC/test/F1/data/2023_races',
-        'race_2024': '/Users/socaresabol/POC/test/F1/data/2024_races',
-        'test_data': '/Users/socaresabol/POC/test/F1/Truck_Cal/cropped_data',
-        'backup_data': '/Users/socaresabol/POC/test/F1/backup_data'
+        'race_2023': os.path.join(project_root, 'data', '2023_races'),
+        'race_2024': os.path.join(project_root, 'data', '2024_races'),
+        'test_data': os.path.join(project_root, 'Truck_Cal', 'cropped_data'),
+        'backup_data': os.path.join(project_root, 'backup_data'),
+        'user_data': os.path.expanduser('~/F1_Racing_Data'),  # User's home directory
+        'temp_data': os.path.join(os.getcwd(), 'temp_racing_data'),  # Current working directory
+        'env_data': os.getenv('F1_DATA_PATH', os.path.join(project_root, 'Truck_Cal', 'cropped_data'))  # From environment variable
     }
     
     # Choose data set
     chosen_data = 'test_data'  # Change this to switch data sets
     
+    # Print available data directories
+    print("Available data directories:")
+    for key, path in data_dirs.items():
+        exists = "✅" if os.path.exists(path) else "❌"
+        print(f"  {key:12} -> {path} {exists}")
+    
     if chosen_data in data_dirs:
         new_dir = data_dirs[chosen_data]
         if os.path.exists(new_dir):
             config.Data.BASE_DIR = new_dir
-            print(f"✅ Data directory set to: {new_dir}")
+            print(f"\n✅ Data directory set to: {new_dir}")
         else:
-            print(f"❌ Directory not found: {new_dir}")
+            print(f"\n❌ Directory not found: {new_dir}")
             print(f"Using default: {config.Data.BASE_DIR}")
+            
+            # Try to create the directory if it's within the project
+            if not os.path.isabs(new_dir) or project_root in new_dir:
+                try:
+                    os.makedirs(new_dir, exist_ok=True)
+                    print(f"📁 Created directory: {new_dir}")
+                except Exception as e:
+                    print(f"❌ Could not create directory: {e}")
+    else:
+        print(f"\n❌ Unknown data set: {chosen_data}")
+        print(f"Available options: {list(data_dirs.keys())}")
     
-    print(f"Current data directory: {config.Data.BASE_DIR}")
+    print(f"\nCurrent data directory: {config.Data.BASE_DIR}")
+
+
+def get_portable_data_dir(data_type='test_data'):
+    """
+    Helper function to get a portable data directory path
+    
+    Args:
+        data_type (str): Type of data directory ('test_data', 'race_2023', etc.)
+    
+    Returns:
+        str: Absolute path to the data directory
+    
+    Example:
+        from config_examples import get_portable_data_dir
+        data_path = get_portable_data_dir('test_data')
+    """
+    import os
+    
+    # Get the current script directory and project root
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = current_dir
+    
+    # Portable data directories
+    data_dirs = {
+        'race_2023': os.path.join(project_root, 'data', '2023_races'),
+        'race_2024': os.path.join(project_root, 'data', '2024_races'),
+        'test_data': os.path.join(project_root, 'Truck_Cal', 'cropped_data'),
+        'backup_data': os.path.join(project_root, 'backup_data'),
+        'user_data': os.path.expanduser('~/F1_Racing_Data'),
+        'temp_data': os.path.join(os.getcwd(), 'temp_racing_data'),
+        'env_data': os.getenv('F1_DATA_PATH', os.path.join(project_root, 'Truck_Cal', 'cropped_data'))
+    }
+    
+    if data_type in data_dirs:
+        return data_dirs[data_type]
+    else:
+        # Return test_data as default
+        return data_dirs['test_data']
+
+
+def setup_data_directory(data_type='test_data', create_if_missing=True):
+    """
+    Setup and configure a data directory for the F1 timing system
+    
+    Args:
+        data_type (str): Type of data directory
+        create_if_missing (bool): Create directory if it doesn't exist
+    
+    Returns:
+        tuple: (success, path, message)
+    
+    Example:
+        from config_examples import setup_data_directory
+        success, path, msg = setup_data_directory('test_data')
+        if success:
+            print(f"Data directory ready: {path}")
+        else:
+            print(f"Error: {msg}")
+    """
+    import os
+    from config import config
+    
+    try:
+        data_path = get_portable_data_dir(data_type)
+        
+        if os.path.exists(data_path):
+            config.Data.BASE_DIR = data_path
+            return True, data_path, f"Data directory set successfully"
+        
+        elif create_if_missing:
+            os.makedirs(data_path, exist_ok=True)
+            config.Data.BASE_DIR = data_path
+            return True, data_path, f"Data directory created and set successfully"
+        
+        else:
+            return False, data_path, f"Directory does not exist: {data_path}"
+            
+    except Exception as e:
+        return False, "", f"Error setting up data directory: {str(e)}"
 
 def example_performance_tuning():
     """Example: Performance tuning for different hardware"""
@@ -222,12 +325,32 @@ def run_examples():
         print("\n" + "="*50)
 
 if __name__ == "__main__":
+    import os
+    
     print("F1 Live Timing System - Configuration Examples")
     print("=" * 50)
     print("This script demonstrates various configuration setups.")
     print("Each example shows how to configure the system for different scenarios.")
     
-    response = input("\nRun all examples? (y/n): ").strip().lower()
+    # Quick setup demo
+    print("\n🚀 Quick Setup Demo:")
+    print("-" * 20)
+    
+    # Show portable data directory usage
+    print("1. Getting portable data directories:")
+    for data_type in ['test_data', 'race_2023', 'user_data', 'env_data']:
+        path = get_portable_data_dir(data_type)
+        exists = "✅" if os.path.exists(path) else "❌"
+        print(f"   {data_type:12} -> {path} {exists}")
+    
+    print("\n2. Setting up data directory:")
+    success, path, msg = setup_data_directory('test_data', create_if_missing=True)
+    print(f"   Result: {msg}")
+    print(f"   Path: {path}")
+    
+    print("\n" + "="*50)
+    
+    response = input("\nRun all configuration examples? (y/n): ").strip().lower()
     
     if response in ['y', 'yes', '1']:
         run_examples()
@@ -239,6 +362,12 @@ if __name__ == "__main__":
         print("4. example_custom_data_setup()")
         print("5. example_performance_tuning()")
         print("6. example_multi_environment()")
+        print("\nPortable helper functions:")
+        print("7. get_portable_data_dir(data_type)")
+        print("8. setup_data_directory(data_type, create_if_missing=True)")
         print("\nRun individual examples in Python:")
         print("  from config_examples import example_development_setup")
         print("  example_development_setup()")
+        print("\nOr use the portable helpers:")
+        print("  from config_examples import setup_data_directory")
+        print("  success, path, msg = setup_data_directory('test_data')")
